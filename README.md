@@ -160,3 +160,7 @@ Ported from sprtsmng at engine version **2.0.0**, covering:
 
 Host-app concerns (Convex persistence, Gamecast UI, dynasty progression) stay in
 sprtsmng. This package is the portable simulation core.
+
+## License
+
+MIT © Andrew Solomon — see [LICENSE](./LICENSE).
