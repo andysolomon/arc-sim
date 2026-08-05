@@ -31,6 +31,7 @@
     "verify": "pnpm type-check && pnpm test && pnpm build && pnpm dist-check",
     "prepublishOnly": "pnpm verify"
   },
+  "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=20"
   },
