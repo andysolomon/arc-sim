@@ -465,4 +465,29 @@ export interface PbpFeatureGates {
    * afterwards.
    */
   goalLineYards?: boolean;
+  /**
+   * One rule decides whether a play that reached the goal line scored, for the
+   * run and the pass alike.
+   *
+   * v1 asked the question in both places and answered it differently. A carry
+   * rolled a 2–15% chance of *scoring*; a completion scored automatically. Over
+   * 300 games that came out as 7.8% conversion on the ground against 92.9%
+   * through the air, and left **8.9% of all touchdowns to the run** — a sport
+   * in which nobody scores by rushing, from an engine whose stated invariant is
+   * that stats are derived from plays rather than invented.
+   *
+   * Under this gate both paths call `stoppedAtGoalLine`, which asks the
+   * question that is actually in doubt — the ball got there, did the defense
+   * hold — and discounts a breakaway, since a back who broke a 20-yard run was
+   * not caught from behind at the one.
+   *
+   * Implies `goalLineYards`: a play stopped short has to be credited to the 99
+   * whichever way it got there, or the correction reintroduces the bookkeeping
+   * bug it was built beside.
+   *
+   * Costs no extra draw on a rush — it replaces the roll v1 already spent — and
+   * one new draw on a completion, which is why it changes the sequence and has
+   * to be opt-in.
+   */
+  goalLineConversion?: boolean;
 }

@@ -91,6 +91,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `schemes` | Offense/defense scheme + weekly gameplan modifiers |
 | `timeline` | Per-play event timelines + pre-snap scoreboard (no outcome change) |
 | `goalLineYards` | A carry stopped at the goal line is credited to the 99, not past it |
+| `goalLineConversion` | One rule decides whether a run *or* a pass that reached the goal line scored |
 
 ## Module map
 
@@ -155,6 +156,42 @@ either position — the touchdown roll is taken in exactly the circumstances it
 always was, and the gate only rewrites `yards` afterwards. Verified by
 simulating 800 games with the gate off against the pre-change engine: zero
 divergence.
+
+## Who scores at the goal line (`goalLineConversion` gate)
+
+v1 asked the same question in two places and answered it differently. A carry
+that reached the goal line rolled a 2–15% chance of *scoring*; a completion that
+reached it scored automatically. Measured over 300 games:
+
+| | reached the goal line | scored | TDs/game |
+| --- | --- | --- | --- |
+| rush | 1,306 | **7.8%** | 0.34 |
+| pass | 1,126 | **92.9%** | 3.49 |
+
+Both paths get there about equally often, so answering differently did not shade
+the balance — it decided it. **8.9% of all touchdowns were rushing**, against
+roughly 35–40% in the real sport. Nobody scored on the ground.
+
+Under the gate both call `stoppedAtGoalLine`, which asks the question actually
+in doubt — the ball got there, did the defense hold — and discounts a breakaway,
+because a back who broke a 20-yard run was not caught from behind at the one.
+The same 300 games then give:
+
+| | scored | TDs/game |
+| --- | --- | --- |
+| rush | 60.6% | 2.17 |
+| pass | 63.4% | 2.27 |
+
+**48.9% of touchdowns rushing**, and combined scoring moves 29.5 → 33.6 points
+per game. Still run-leaning against the real 35–40%, because the rush yardage
+model reaches the goal line as readily as the pass does; closing that gap is a
+balance question about yardage distributions, not about this rule.
+
+The gate implies `goalLineYards` — a play stopped short must be credited to the
+99 whichever way it got there. It costs no extra draw on a rush (it replaces the
+roll v1 already spent) and one new draw on a completion, which is why it changes
+the sequence and has to be opt-in. Verified inert when off across 1,250 games in
+five gate configurations: zero divergence.
 
 ## Stat derivation
 

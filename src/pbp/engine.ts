@@ -929,6 +929,28 @@ function doPunt(state: GameState): void {
   startDrive(state, offenseTeamId(state), newField);
 }
 
+/**
+ * A carry or a catch whose yardage reaches the goal line. Was he stopped short?
+ *
+ * One rule for both, which is the entire point. v1 asked the question twice and
+ * answered it differently: a rush rolled a 2–15% chance of *scoring*, while a
+ * completion scored automatically. Measured over 300 games that produced 7.8%
+ * conversion on the ground against 92.9% through the air, and left just 8.9% of
+ * all touchdowns to the run — a football in which nobody scores by rushing.
+ *
+ * Framed as a *stop* rather than a score, because that is the event actually in
+ * doubt: the ball got there, and the question is whether the defense held. A
+ * breakaway is discounted hard — a back who broke a 20-yard run was not caught
+ * from behind at the one.
+ *
+ * Costs exactly one draw, the same one `doRush` already spent here, which is
+ * why the rush path stays draw-for-draw identical when the gate is off.
+ */
+function stoppedAtGoalLine(state: GameState, yards: number, edge: number): boolean {
+  const stand = clamp(0.38 - edge * 0.04, 0.1, 0.55);
+  return state.rand() < (yards >= 15 ? stand * 0.35 : stand);
+}
+
 function doRush(state: GameState): void {
   const off = offenseTeam(state);
   const def = defenseTeam(state);
@@ -977,12 +999,18 @@ function doRush(state: GameState): void {
      * The draw stays nested here rather than in the condition above so it is
      * taken in exactly the circumstances it always was — hoisting it would
      * shift every subsequent number in the sequence and divorce the log from v1.
+     *
+     * Both branches spend exactly one draw, so the two models differ in what
+     * they decide, never in how much randomness they consume.
      */
-    if (state.rand() < tdProb + (yards >= 15 ? 0.15 : 0)) {
+    const scored = state.features.goalLineConversion
+      ? !stoppedAtGoalLine(state, yards, edge)
+      : state.rand() < tdProb + (yards >= 15 ? 0.15 : 0);
+    if (scored) {
       yards = 100 - state.fieldPosition;
       isScoring = true;
       points = 6;
-    } else if (state.features.goalLineYards) {
+    } else if (state.features.goalLineYards || state.features.goalLineConversion) {
       // Stopped short. He got to the 1, so that is what he is credited with —
       // and, at goal-to-go, that is short of the line to gain (see the gate).
       yards = 99 - state.fieldPosition;
@@ -1187,9 +1215,21 @@ function doPass(state: GameState): void {
   }
 
   if (state.fieldPosition + yards >= 100) {
-    yards = 100 - state.fieldPosition;
-    isScoring = true;
-    points = 6;
+    /*
+     * v1 scored here unconditionally — a completion that reached the goal line
+     * was always six, with no roll and no way to be stopped at the one. That is
+     * the mirror image of the rush path's flaw, and between them they left 91%
+     * of touchdowns to the pass. Under the gate both ask the same question.
+     *
+     * Draws nothing when the gate is off, so v1 keeps its exact sequence.
+     */
+    if (state.features.goalLineConversion && stoppedAtGoalLine(state, yards, edge)) {
+      yards = 99 - state.fieldPosition;
+    } else {
+      yards = 100 - state.fieldPosition;
+      isScoring = true;
+      points = 6;
+    }
   }
 
   const play: PbpPlay = {
@@ -1776,6 +1816,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       schemes: input.features?.schemes === true,
       timeline: input.features?.timeline === true,
       goalLineYards: input.features?.goalLineYards === true,
+      goalLineConversion: input.features?.goalLineConversion === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

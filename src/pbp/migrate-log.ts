@@ -101,6 +101,9 @@ const MECHANIC_GATE = {
   // Without it, a carry stopped at the goal line kept the yards it did not
   // gain, so rushing totals on such a log are an upper bound, not a count.
   goalLineYards: "goalLineYards",
+  // Without it, rushing and passing touchdown totals reflect two different
+  // rules, so the split between them is an artifact rather than a result.
+  goalLineConversion: "goalLineConversion",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

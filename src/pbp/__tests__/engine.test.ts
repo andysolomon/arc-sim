@@ -146,3 +146,87 @@ describe("goalLineYards gate", () => {
     expect(overruns.length).toBeGreaterThan(0);
   });
 });
+
+describe("goalLineConversion gate", () => {
+  const GATES = {
+    scoringV2: true,
+    penalties: true,
+    situational: true,
+    balance: true,
+    schemes: true,
+  };
+
+  function games(goalLineConversion: boolean) {
+    return Array.from({ length: 30 }, (_, i) =>
+      simulateGameLog({
+        home: team("home", 74),
+        away: team("away", 66),
+        seed: seedFor("pbp", "goal-line-conversion", String(i)),
+        features: { ...GATES, goalLineConversion },
+      }),
+    );
+  }
+
+  /** Plays that reached the goal line, and how many of them scored. */
+  function conversion(logs: ReturnType<typeof games>, playType: string) {
+    let reached = 0;
+    let scored = 0;
+    for (const play of logs.flatMap((l) => l.drives.flatMap((d) => d.plays))) {
+      if (play.playType !== playType || play.isTurnover) continue;
+      if (play.isScoring) {
+        reached++;
+        scored++;
+      } else if (play.fieldPosition + play.yardsGained >= 99) {
+        reached++;
+      }
+    }
+    return { reached, rate: scored / reached };
+  }
+
+  it("judges a run and a pass at the goal line by the same rule", () => {
+    /*
+     * The defect: v1 rolled a 2–15% chance of scoring on a carry and gave a
+     * completion a touchdown for free. Both reach the goal line about equally
+     * often, so answering differently is what buried the running game.
+     */
+    const logs = games(true);
+    const rush = conversion(logs, "rush");
+    const pass = conversion(logs, "pass_complete");
+
+    expect(rush.reached).toBeGreaterThan(50);
+    expect(pass.reached).toBeGreaterThan(50);
+    // Not identical — the breakaway discount applies to different yardage
+    // distributions — but the same order, which v1 was nowhere near.
+    expect(Math.abs(rush.rate - pass.rate)).toBeLessThan(0.15);
+  });
+
+  it("stops a completion at the one instead of always scoring", () => {
+    const stopped = games(true)
+      .flatMap((l) => l.drives.flatMap((d) => d.plays))
+      .filter(
+        (p) =>
+          p.playType === "pass_complete" &&
+          !p.isScoring &&
+          !p.isTurnover &&
+          p.fieldPosition + p.yardsGained === 99,
+      );
+    // v1 could not produce this play at all.
+    expect(stopped.length).toBeGreaterThan(0);
+  });
+
+  it("never credits a stopped play past the 99, on either path", () => {
+    for (const play of games(true).flatMap((l) => l.drives.flatMap((d) => d.plays))) {
+      if (play.isScoring || play.isTurnover) continue;
+      if (play.playType !== "rush" && play.playType !== "pass_complete") continue;
+      expect(play.fieldPosition + play.yardsGained).toBeLessThanOrEqual(99);
+    }
+  });
+
+  it("leaves the lopsided v1 split in place when off", () => {
+    // Pins the defect itself, so this test fails if someone "fixes" it
+    // ungated — which would break v1 parity silently.
+    const logs = games(false);
+    expect(conversion(logs, "rush").rate).toBeLessThan(0.25);
+    expect(conversion(logs, "pass_complete").rate).toBeGreaterThan(0.85);
+  });
+});
