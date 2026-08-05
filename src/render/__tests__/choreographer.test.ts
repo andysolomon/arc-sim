@@ -270,7 +270,12 @@ describe("choreograph", () => {
       }
     }
     expect(seen.size).toBeGreaterThanOrEqual(15);
-  });
+    // Twenty-five games is ~3,500 plays choreographed, which is genuinely slow
+    // rather than hung: ~3s on a laptop but ~10s on a shared CI runner, so
+    // vitest's 5s default failed here and nowhere else. Raised rather than
+    // trimmed — the rare play types are the whole point of the sweep — but not
+    // raised globally, so a real hang in a fast test still fails fast.
+  }, 60_000);
 
   it("captions every play", () => {
     for (const animation of animations) {
