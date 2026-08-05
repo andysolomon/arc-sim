@@ -138,6 +138,9 @@ src/
 examples/
   sim-demo.ts       CLI sample game
   render/           browser demo (pnpm demo:render)
+scripts/
+  dist-check.ts     checks the built package, not the source
+  gen-v1-golden.ts  regenerates the v1 parity fixture
 docs/
   ENGINE.md         architecture deep-dive
 ```

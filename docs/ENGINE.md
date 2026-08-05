@@ -251,10 +251,34 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 3. Team TD / FG / XP totals match scoring plays
 4. `decisive: true` never ties
 5. Clock/quarter monotonic; drives alternate except turnovers/scores
-6. With all gates off, v1 golden logs reproduce byte-for-byte
+6. With all gates off, v1 golden logs reproduce byte-for-byte — pinned by
+   `v1-golden.test.ts` against four recorded games (see below)
 7. `timeline` on/off produces the same game; it only adds `events` / `preSnap`
 8. Under `goalLineYards`, a non-scoring carry never ends past the 99 — and at
    goal-to-go, never gains the first down it did not score on
+
+## The v1 golden fixture
+
+Invariant 6 is the promise the whole gate design rests on, so it is pinned
+rather than asserted. `src/pbp/__tests__/fixtures/v1-golden-logs.json` holds
+four games captured from the v1 engine before any v2 work — an even matchup, a
+mismatch, a playoff game that cannot tie, and each flavor — recorded as a
+SHA-256 per game, plus the first game's full log so a failure shows a readable
+diff instead of two hex strings.
+
+The failure mode it exists to catch is specific: **a gate that consumes a random
+draw while switched off.** That shifts the PRNG sequence and changes every play
+after it, and no unit test of the mechanic itself would notice. This one fails
+on the next play.
+
+```bash
+pnpm gen:golden   # regenerate — ONLY when a v1 behavior change is intended
+```
+
+Inputs live in `fixtures/v1-golden-cases.ts`, shared by the test and the
+generator so the two cannot drift. Against an unchanged engine the generator
+rewrites the file byte-for-byte, so an empty `git diff` afterwards is itself the
+check that nothing moved.
 
 ## What was left behind (on purpose)
 
