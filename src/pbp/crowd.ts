@@ -75,4 +75,4 @@ export function isRivalry(rivalryIntensity: number | undefined): boolean {
  * and the engine looks them up with it — if the two ever drifted, a declared
  * rivalry would silently stop being found at simulation time.
  */
-export { rivalryPairKey } from "./rivalries";
+export { rivalryPairKey } from "./rivalries.js";

@@ -3,7 +3,7 @@ import {
   offenseTendencies,
   type DefenseTendencies,
   type OffenseTendencies,
-} from "../schemes/catalog";
+} from "../schemes/catalog.js";
 
 /*
  * Schemes in the simulator (Dynasty Mode A6).

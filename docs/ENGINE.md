@@ -89,6 +89,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `injuries` | Fatigue snaps + injury rolls |
 | `weather` | Wind/precip modifiers + crowd/rivalry edge |
 | `schemes` | Offense/defense scheme + weekly gameplan modifiers |
+| `timeline` | Per-play event timelines + pre-snap scoreboard (no outcome change) |
 
 ## Module map
 
@@ -103,6 +104,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `pbp/weather.ts` | Conditions → multipliers |
 | `pbp/crowd.ts` | Home-field × prestige × rivalry |
 | `pbp/schemes.ts` | Tendency vectors → engine multipliers |
+| `pbp/timeline.ts` | Play → ordered `PbpSimEvent[]` for renderers (pure, no RNG) |
 | `schemes/catalog.ts` | Air Raid, Flexbone, 4-3, 46, … |
 | `schemes/gameplan.ts` | Weekly emphasis (establish run, tempo, …) |
 | `rng/` | mulberry32 + `seedFor(domain, …parts)` |
@@ -134,6 +136,85 @@ so incompletions no longer burn a full ~30s cycle.
 
 Plays with `penalty.negatesPlay` grant zero stat credit.
 
+## Rendering seam (`timeline` gate)
+
+The engine stays headless. A renderer subscribes to what it produced.
+
+`PbpPlay` already carries its own **pre-snap** situation — `down`, `distance`,
+`fieldPosition`, `quarter` and `clockSeconds` are recorded before the result is
+applied — so a consumer never reverse-engineers the snap spot. The `timeline`
+gate adds the two things that were missing:
+
+```ts
+play.preSnap  // { homeScore, awayScore, homeTimeouts?, awayTimeouts? }
+play.events   // ordered PbpSimEvent[]: snap → handoff → tackle → whistle
+```
+
+```ts
+const log = simulateGameLog({ home, away, seed, features: { ...gates, timeline: true } });
+
+for (const event of play.events ?? []) {
+  event.t;        // seconds from the snap; the whistle is the play's duration
+  event.type;     // snap | handoff | pass_release | catch | tackle | …
+  event.playerId; // when the engine named someone
+  event.spot;     // yards from the OFFENSE's own goal line, same frame as fieldPosition
+}
+```
+
+Three properties make this safe to switch on:
+
+1. **It changes no outcome.** `playTimeline` draws no randomness, on or off, so
+   the same seed yields the same game either way — verified by simulating with
+   the gate on, stripping `events`/`preSnap`, and deep-comparing to the gate-off
+   log.
+2. **It works on history.** `playTimeline(play)` is pure, so a stored v1 log can
+   be laid out on read without re-simulating it.
+3. **It is description, not simulation.** The engine does not model a dropback
+   or a ball in flight. Timings are a plausible schedule and the air/YAC split
+   on a completion is a drawing convention (see `timeline.ts`). Nothing derives
+   a statistic from an event — `deriveStatLines` reads plays only.
+
+Cost: roughly +70% on a serialized log, which is why it is opt-in.
+
+## Graphics layer (`@arc-sim/core/render`)
+
+A separate entry point, so importing the engine never pulls in Three.js.
+
+```
+engine          → PbpGameLog        what happened
+pbp/timeline.ts → PbpSimEvent[]     in what order        (pure)
+render/         → PlayAnimation     who moved where      (pure, no Three)
+render/scene.ts → pixels            the only Three file
+```
+
+| Module | Responsibility |
+| --- | --- |
+| `render/field.ts` | Engine spots (offense-relative 0–100) → world yards |
+| `render/formations.ts` | Where 22 players line up, per play type |
+| `render/choreographer.ts` | Play + events → 23 keyframed tracks |
+| `render/animation.ts` | Track/keyframe types + sampling |
+| `render/describe.ts` | Play → English (also a text play-by-play feed) |
+| `render/scene.ts` | Three.js field, actors, playback, broadcast camera |
+
+**The contract.** Choreography may invent *how*, never *what*. Every position
+that matters comes from `PbpSimEvent.spot`; only lanes, routes, pursuit angles
+and who-blocks-whom are invented. A test pins the consequence: the ball is where
+the engine said it ended, and the man credited with the tackle is at the tackle.
+
+**Deterministic.** No `Math.random()` — arbitrary choices are hashed from
+`playId`, so a replay is the same play. The engine earns its determinism the
+hard way; throwing it away at the last step would make visual bugs
+unreproducible.
+
+**Casting.** The engine names a handful of participants; they are cast onto
+slots once, and every beat reads that casting rather than re-deriving it. One
+body per player, even when the engine credits the same man with a solo tackle
+and an assist.
+
+```bash
+pnpm demo:render   # simulate a game headlessly, then watch it
+```
+
 ## Invariants
 
 1. Same seed → identical `PbpGameLog` and derived stats
@@ -142,6 +223,7 @@ Plays with `penalty.negatesPlay` grant zero stat credit.
 4. `decisive: true` never ties
 5. Clock/quarter monotonic; drives alternate except turnovers/scores
 6. With all gates off, v1 golden logs reproduce byte-for-byte
+7. `timeline` on/off produces the same game; it only adds `events` / `preSnap`
 
 ## What was left behind (on purpose)
 

@@ -1,4 +1,4 @@
-import type { PbpFeatureGates, PbpGameLog, PbpPlay } from "./types";
+import type { PbpFeatureGates, PbpGameLog, PbpPlay } from "./types.js";
 
 /*
  * Stored play-log compatibility (Dynasty Mode A1).
@@ -97,6 +97,7 @@ const MECHANIC_GATE = {
   timeouts: "situational",
   weather: "weather",
   schemes: "schemes",
+  timeline: "timeline",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

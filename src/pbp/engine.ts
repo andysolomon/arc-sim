@@ -1,10 +1,10 @@
-import { mulberry32 } from "../rng/index";
+import { mulberry32 } from "../rng/index.js";
 import {
   DEFAULT_SIMULATION_FLAVOR,
   normalizeSimulationFlavor,
   weightsForFlavor,
-} from "../flavor/index";
-import { acceptOrDecline, meanAwareness, rollPenalty } from "./penalties";
+} from "../flavor/index.js";
+import { acceptOrDecline, meanAwareness, rollPenalty } from "./penalties.js";
 import {
   chargeSnap,
   snapCost,
@@ -12,8 +12,8 @@ import {
   staminaFor,
   substitutionCandidate,
   type SnapLedger,
-} from "./fatigue";
-import { contactFactor, rollInjury } from "./injuries";
+} from "./fatigue.js";
+import { contactFactor, rollInjury } from "./injuries.js";
 import {
   NEUTRAL_AGGRESSION,
   clockStrategy,
@@ -25,23 +25,24 @@ import {
   shouldSpike,
   shouldUseTimeout,
   type ClockStrategy,
-} from "./situational";
-import { homeFieldEdge as crowdHomeFieldEdge } from "./crowd";
+} from "./situational.js";
+import { homeFieldEdge as crowdHomeFieldEdge } from "./crowd.js";
 import {
   NEUTRAL_SCHEME_MODIFIERS,
   layerSchemeModifiers,
   schemeModifiers,
   type SchemeModifiers,
-} from "./schemes";
+} from "./schemes.js";
 import {
   gameplanModifiers,
   isGameplanFocus,
-} from "../schemes/gameplan";
+} from "../schemes/gameplan.js";
 import {
   NEUTRAL_MODIFIERS,
   weatherModifiers,
   type WeatherModifiers,
-} from "./weather";
+} from "./weather.js";
+import { kickReturnSpot, playTimeline } from "./timeline.js";
 import type {
   GameInjury,
   PbpFeatureGates,
@@ -56,7 +57,7 @@ import type {
   PlayerSimProfile,
   SimPositionGroup,
   TeamSimProfile,
-} from "./types";
+} from "./types.js";
 
 const QUARTER_SECONDS = 720;
 const OT_SECONDS = 300;
@@ -567,6 +568,25 @@ function profileFor(
 }
 
 function recordPlay(state: GameState, play: PbpPlay): void {
+  /*
+   * The scoreboard as this play began (A7).
+   *
+   * Written here rather than in each play function because `recordPlay` is the
+   * one choke point every play passes through — and because it runs BEFORE the
+   * result is applied, which is what makes the number "before" rather than
+   * "after". The two plays that used to bank their points ahead of this call
+   * (the two-point try and the safety) now bank them after it, for exactly
+   * that reason. Costs no random draw.
+   */
+  if (state.features.timeline) {
+    play.preSnap = {
+      homeScore: state.homeScore,
+      awayScore: state.awayScore,
+      ...(state.features.situational
+        ? { homeTimeouts: state.homeTimeouts, awayTimeouts: state.awayTimeouts }
+        : {}),
+    };
+  }
   if (state.pendingTempo) {
     play.tempo = state.pendingTempo;
     // Stamp the snap itself, not the extra point and kickoff that a touchdown
@@ -731,7 +751,13 @@ function doKickoff(state: GameState, kicking: "home" | "away"): void {
   const returner = selectPlayer(receiving, "RB", state, true);
   const edge = matchupEdge(state);
   const returnYards = Math.round(18 + state.rand() * 22 + edge * 8);
-  const startField = clamp(returnYards, 15, 40);
+  /*
+   * The clamp lives in `timeline.ts` so the renderer can apply the same one.
+   * `yardsGained` records the RAW roll, so a timeline built from the play alone
+   * has to know where the returner was actually stopped, and two copies of the
+   * bound would drift apart. Identical to the old `clamp(returnYards, 15, 40)`.
+   */
+  const startField = kickReturnSpot(returnYards);
 
   startDrive(state, kickingTeam.teamId, 35);
   const play: PbpPlay = {
@@ -1223,8 +1249,6 @@ function doSafety(state: GameState): void {
   const def = defenseTeam(state);
   const tackler = selectDefender(def, state, "tackle");
 
-  awardDefensivePoints(state, 2);
-
   recordPlay(state, {
     playId: state.playId,
     driveId: state.driveId,
@@ -1246,6 +1270,9 @@ function doSafety(state: GameState): void {
     isTurnover: true,
     participants: [participant(tackler, def.teamId, "tackler_solo")],
   });
+  // After `recordPlay`, so the snapshot it takes reads the score the safety
+  // was conceded AT rather than the score it produced (A7).
+  awardDefensivePoints(state, 2);
 
   tickFixedClock(state, 6, 6, true);
   endDrive(state, "turnover");
@@ -1278,11 +1305,6 @@ function doTwoPointConversion(state: GameState): void {
   const edge = matchupEdge(state);
   const success = state.rand() < clamp(0.45 + edge * 0.1, 0.3, 0.62);
 
-  if (success) {
-    if (state.possession === "home") state.homeScore += 2;
-    else state.awayScore += 2;
-  }
-
   recordPlay(state, {
     playId: state.playId,
     driveId: state.driveId,
@@ -1303,6 +1325,13 @@ function doTwoPointConversion(state: GameState): void {
       participant(target, off.teamId, "receiver"),
     ],
   });
+  // Banked after the play is recorded, so its pre-snap snapshot shows the score
+  // the team was trying to convert FROM (A7). Nothing between reads the score,
+  // so the ordering is otherwise invisible.
+  if (success) {
+    if (state.possession === "home") state.homeScore += 2;
+    else state.awayScore += 2;
+  }
   tickFixedClock(state, 5, 5, true);
 }
 
@@ -1733,6 +1762,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       weather: input.features?.weather === true,
       injuries: input.features?.injuries === true,
       schemes: input.features?.schemes === true,
+      timeline: input.features?.timeline === true,
     },
     snaps: new Map(),
     unavailable: new Set(),
@@ -1830,6 +1860,24 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
 
   if (state.currentDriveTeamId !== null && state.currentDrivePlays.length > 0) {
     endDrive(state, state.gameOver ? "end_of_game" : "turnover");
+  }
+
+  /*
+   * Timelines are attached in one pass at the end (A7), not inside
+   * `recordPlay`, because a play is not finished when it is recorded: an
+   * accepted flag is written onto it afterwards by `applyPlayResult`, and a
+   * timeline built before that would be missing the beat the flag caused.
+   *
+   * Safe to run last because `playTimeline` is pure — it reads the play and
+   * nothing else, and draws no randomness. Enabling this gate therefore adds
+   * fields to a log without moving a single outcome in it.
+   */
+  if (state.features.timeline) {
+    for (const drive of state.drives) {
+      for (const play of drive.plays) {
+        play.events = playTimeline(play);
+      }
+    }
   }
 
   return {

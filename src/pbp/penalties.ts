@@ -1,4 +1,4 @@
-import type { PbpPlayType } from "./types";
+import type { PbpPlayType } from "./types.js";
 
 /*
  * Penalties (Dynasty Mode A2).

@@ -1,4 +1,4 @@
-import type { PbpPlayType, PlayerSimProfile } from "./types";
+import type { PbpPlayType, PlayerSimProfile } from "./types.js";
 
 /*
  * Fatigue and durability (Dynasty Mode A4).

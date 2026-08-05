@@ -1,5 +1,5 @@
-import type { PlayerGameStatLine } from "../stats/types";
-import type { PbpGameLog, PbpPlay, PbpParticipantRole } from "./types";
+import type { PlayerGameStatLine } from "../stats/types.js";
+import type { PbpGameLog, PbpPlay, PbpParticipantRole } from "./types.js";
 
 export interface DerivedPlayerStatLine {
   playerId: string;

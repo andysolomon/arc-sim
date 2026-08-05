@@ -5,7 +5,7 @@ import {
   seedFor,
   type TeamSimProfile,
   type PlayerSimProfile,
-} from "../../index";
+} from "../../index.js";
 
 function team(id: string, strength: number): TeamSimProfile {
   const p = (pid: string, position: string, overall: number): PlayerSimProfile => ({

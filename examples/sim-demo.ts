@@ -9,7 +9,7 @@ import {
   seedFor,
   type TeamSimProfile,
   type PlayerSimProfile,
-} from "../src/index";
+} from "../src/index.js";
 
 function roster(
   teamId: string,
@@ -70,6 +70,7 @@ const log = simulateGameLog({
     balance: true,
     injuries: true,
     schemes: true,
+    timeline: true,
   },
 });
 
@@ -105,4 +106,25 @@ for (const play of sample) {
     `  Q${play.quarter} ${play.clockSeconds}s  ${play.playType.padEnd(16)} ${play.yardsGained >= 0 ? "+" : ""}${play.yardsGained} yd` +
       (play.isScoring ? `  ★ ${play.pointsScored} pts` : ""),
   );
+}
+
+/*
+ * What a renderer consumes: one play, laid out in time. The engine is done
+ * with it instantly; a graphics layer choreographs these beats at leisure.
+ */
+const rendered = log.drives
+  .flatMap((d) => d.plays)
+  .find((p) => p.playType === "pass_complete" && (p.events?.length ?? 0) > 0);
+
+if (rendered) {
+  console.log(
+    `\nTimeline — ${rendered.down} & ${rendered.distance} at the ${rendered.fieldPosition}:`,
+  );
+  for (const event of rendered.events ?? []) {
+    console.log(
+      `  ${event.t.toFixed(2).padStart(5)}s  ${event.type.padEnd(14)}` +
+        `${(event.playerId ?? "—").padEnd(14)}` +
+        `${event.spot === undefined ? "" : `@ ${event.spot}`}`,
+    );
+  }
 }

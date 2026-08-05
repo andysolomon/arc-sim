@@ -22,6 +22,10 @@ export {
   normalizeIntensity,
   homeFieldEdge,
   isRivalry,
+  playTimeline,
+  kickReturnSpot,
+  type PbpSimEvent,
+  type PbpSimEventType,
   type PbpDrive,
   type PbpDriveEndReason,
   type PbpGameInput,
@@ -39,7 +43,7 @@ export {
   type DerivedPlayerStatLine,
   type Weather,
   type WeatherModifiers,
-} from "./pbp/index";
+} from "./pbp/index.js";
 
 export {
   mulberry32,
@@ -47,7 +51,7 @@ export {
   seedFor,
   rngFor,
   type SeedDomain,
-} from "./rng/index";
+} from "./rng/index.js";
 
 export {
   DEFAULT_SIMULATION_FLAVOR,
@@ -58,7 +62,7 @@ export {
   BASE_VARIANCE,
   type SimulationFlavor,
   type SimulationWeights,
-} from "./flavor/index";
+} from "./flavor/index.js";
 
 export {
   OFFENSE_SCHEMES,
@@ -79,7 +83,7 @@ export {
   type DefenseSchemeSpec,
   type GameplanFocus,
   type GameplanModifiers,
-} from "./schemes/index";
+} from "./schemes/index.js";
 
 export type {
   PlayerGameStatLine,
@@ -91,4 +95,4 @@ export type {
   StatPunting,
   StatReturns,
   StatBallSecurity,
-} from "./stats/types";
+} from "./stats/types.js";

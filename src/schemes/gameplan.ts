@@ -9,7 +9,7 @@
 import {
   defenseTendencies,
   type DefenseTendencies,
-} from "./catalog";
+} from "./catalog.js";
 
 /** Same shape the simulator consumes via `pbp/schemes.SchemeModifiers`. */
 export interface GameplanModifiers {

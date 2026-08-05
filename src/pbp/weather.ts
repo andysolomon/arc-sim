@@ -1,4 +1,4 @@
-import { mulberry32, seedFor } from "../rng/index";
+import { mulberry32, seedFor } from "../rng/index.js";
 
 /*
  * Game conditions (Dynasty Mode A5).

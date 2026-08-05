@@ -52,6 +52,7 @@ const log = simulateGameLog({
     weather: true,
     injuries: true,
     schemes: true,
+    timeline: true, // per-play event timelines, for a renderer
   },
 });
 
@@ -59,6 +60,51 @@ console.log(`${log.homeScore} – ${log.awayScore}`);
 console.log(`${log.drives.length} drives`);
 console.log(deriveStatLines(log).slice(0, 3));
 ```
+
+## Rendering a game
+
+The engine is headless and stays that way. Graphics subscribe to what it
+produced: with the `timeline` gate on, every play carries an ordered event
+timeline and the scoreboard it began at.
+
+```ts
+for (const event of play.events ?? []) {
+  event.t;        // seconds from the snap
+  event.type;     // snap | handoff | pass_release | catch | tackle | touchdown | …
+  event.playerId; // when the engine named someone
+  event.spot;     // yards from the offense's own goal line, 0–100
+}
+```
+
+Turning it on changes no outcome — the layout draws no randomness, so the same
+seed is the same game with or without it — and `playTimeline(play)` is pure, so
+a log stored years ago can be laid out on read. See
+[docs/ENGINE.md](./docs/ENGINE.md#rendering-seam-timeline-gate).
+
+## Watching it
+
+`@arc-sim/core/render` turns a log into a Three.js broadcast. It is a separate
+entry point: importing the engine never pulls in Three.
+
+```bash
+pnpm demo:render   # simulate a game headlessly, then watch it play out
+```
+
+```ts
+import { FootballScene, choreographLog } from "@arc-sim/core/render";
+
+const scene = new FootballScene({ canvas, homeTeamId: log.homeTeamId });
+scene.enqueue(choreographLog(log));       // 23 keyframed tracks per play
+scene.speed = 1;                          // 1 watch · 6 fast · 0 skip
+requestAnimationFrame(function frame(now) {
+  scene.frame(dt);
+  requestAnimationFrame(frame);
+});
+```
+
+The choreographer is pure and Three-free — it emits plain numbers, so the half
+of the renderer with judgment in it is tested in Node. It may invent *how* a
+play looked; it can never contradict *what* the engine decided.
 
 ## What this engine is
 
@@ -70,6 +116,7 @@ Scores and player stats are **derived from plays**, never invented from a final 
 | `simulateGameLog` | Run the game → `PbpGameLog` |
 | `deriveStatLines` | Reduce the log → per-player box scores |
 | Feature gates | Opt-in v2 mechanics (penalties, clock AI, injuries, …) |
+| `playTimeline` | Reduce a play → ordered events for a renderer |
 | Seeded RNG | Same seed → byte-identical log |
 
 See [docs/ENGINE.md](./docs/ENGINE.md) for the full architecture and design history.
@@ -78,17 +125,22 @@ See [docs/ENGINE.md](./docs/ENGINE.md) for the full architecture and design hist
 
 ```
 src/
-  index.ts          public API
+  index.ts          public API (no dependencies)
   pbp/              play-by-play engine (core)
   rng/              mulberry32 + namespaced seeds
   flavor/           chalk / balanced / upsets weighting
   schemes/          offense/defense catalog + weekly gameplan
   stats/            PlayerGameStatLine shape
+  render/           graphics layer — @arc-sim/core/render (peer: three)
 examples/
   sim-demo.ts       CLI sample game
+  render/           browser demo (pnpm demo:render)
 docs/
   ENGINE.md         architecture deep-dive
 ```
+
+`src/render` is the only place Three.js may be imported, and only in
+`scene.ts` — a test enforces both.
 
 ## Provenance
 
@@ -97,6 +149,8 @@ Ported from sprtsmng at engine version **2.0.0**, covering:
 - v1 baseline: kickoff / rush / pass / punt / FG / XP / kneel / OT
 - v2 Epic A: safeties, two-point, penalties, situational clock AI, fatigue/injuries,
   weather/crowd/rivalry, schemes + gameplan
+- Added here: per-play event timelines (`timeline` gate) — the seam a renderer
+  consumes, added without touching a single simulated outcome
 
 Host-app concerns (Convex persistence, Gamecast UI, dynasty progression) stay in
 sprtsmng. This package is the portable simulation core.

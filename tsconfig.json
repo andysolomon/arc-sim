@@ -1,9 +1,19 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022"],
+    // `nodenext`, not `bundler`. The package ships ESM to Node, where the
+    // resolver does not guess extensions, so relative imports must be written
+    // with the `.js` they will have after compilation. `bundler` accepts them
+    // bare and emits them bare — the build succeeds and `import()` throws
+    // ERR_MODULE_NOT_FOUND in the one place a headless engine has to work.
+    // This setting turns that runtime failure into a compile error.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    // DOM is here for `src/render/scene.ts` only. Nothing under `src/pbp`,
+    // `src/rng`, `src/flavor`, `src/schemes` or `src/stats` may touch a browser
+    // API — the engine runs in Node, in a worker, and in CI, and a test pins
+    // that the core never imports Three either.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,

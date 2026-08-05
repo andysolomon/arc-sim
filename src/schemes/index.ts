@@ -11,7 +11,7 @@ export {
   type DefenseTendencies,
   type OffenseSchemeSpec,
   type DefenseSchemeSpec,
-} from "./catalog";
+} from "./catalog.js";
 
 export {
   gameplanModifiers,
@@ -20,4 +20,4 @@ export {
   NEUTRAL_GAMEPLAN_MODIFIERS,
   type GameplanFocus,
   type GameplanModifiers,
-} from "./gameplan";
+} from "./gameplan.js";

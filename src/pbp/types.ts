@@ -64,9 +64,10 @@ export interface TeamSimProfile {
   gameplan?: string;
 }
 
-import type { SimulationFlavor } from "../flavor/index";
-import type { Weather } from "./weather";
-import type { TeamSchemeProfile } from "./schemes";
+import type { SimulationFlavor } from "../flavor/index.js";
+import type { Weather } from "./weather.js";
+import type { TeamSchemeProfile } from "./schemes.js";
+import type { PbpSimEvent } from "./timeline.js";
 
 export interface PbpGameInput {
   home: TeamSimProfile;
@@ -264,6 +265,44 @@ export interface PbpPlay {
    * is exactly the interesting case.
    */
   timeoutTeamId?: string;
+
+  /**
+   * The ordered beats of this play (A7), for a renderer to choreograph.
+   *
+   * Present only under `features.timeline`. An EMPTY array is different from
+   * absence and meaningful: the play was laid out and has nothing to show,
+   * which is what a timeout is.
+   *
+   * Synthetic — see `timeline.ts`. The engine does not simulate a dropback or a
+   * ball in flight; these beats are consistent with the outcome rather than
+   * evidence about it, so nothing derives a statistic from them.
+   */
+  events?: PbpSimEvent[];
+
+  /**
+   * The scoreboard as this play began (A7).
+   *
+   * Everything else a renderer needs pre-snap is already on the play — `down`,
+   * `distance`, `fieldPosition`, `quarter` and `clockSeconds` are all recorded
+   * BEFORE the result is applied. The score was not, and reconstructing it
+   * means re-summing every scoring play that came first, which is exactly the
+   * kind of reverse-engineering a consumer should never have to do.
+   *
+   * Present only under `features.timeline`. Named for the common case; on a
+   * play that has no snap of its own (a kickoff, a safety) it means "as the
+   * play began".
+   */
+  preSnap?: {
+    homeScore: number;
+    awayScore: number;
+    /**
+     * Timeouts in hand. Present only when `features.situational` was ALSO on —
+     * with clock management off the engine never spends one, and reporting a
+     * full three would claim nobody used a timeout when in truth nobody could.
+     */
+    homeTimeouts?: number;
+    awayTimeouts?: number;
+  };
 }
 
 export interface PbpDrive {
@@ -389,4 +428,18 @@ export interface PbpFeatureGates {
    * a preference nobody is acting on rather than a hidden effect.
    */
   schemes?: boolean;
+  /**
+   * A7 — per-play event timelines and the pre-snap scoreboard, for renderers.
+   *
+   * The odd one out, and deliberately so: it adds no mechanic and changes no
+   * outcome. It draws no randomness whether it is on or OFF, so a game
+   * simulated with it on is the SAME game — same seed, same plays, same derived
+   * stats — carrying extra description. Everything it writes is derived from
+   * plays the engine had already decided (see `timeline.ts`).
+   *
+   * It is a gate rather than an always-on field because the events add about
+   * 70% to a stored log, and a league that never renders a game should not pay
+   * for that.
+   */
+  timeline?: boolean;
 }
