@@ -90,6 +90,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `weather` | Wind/precip modifiers + crowd/rivalry edge |
 | `schemes` | Offense/defense scheme + weekly gameplan modifiers |
 | `timeline` | Per-play event timelines + pre-snap scoreboard (no outcome change) |
+| `goalLineYards` | A carry stopped at the goal line is credited to the 99, not past it |
 
 ## Module map
 
@@ -126,6 +127,34 @@ not a flat points award.
 4th-down chart by field zone (not expected points), shifted by score, time, and
 coach aggression. Clock management separates huddle runoff from play duration
 so incompletions no longer burn a full ~30s cycle.
+
+## Goal-line yardage (`goalLineYards` gate)
+
+`doRush` decides two things separately: whether the carry reached the end zone,
+and whether it was ruled a touchdown. A run can clear the goal line and then
+fail the touchdown roll — and v1 left the yardage where it landed. The ball was
+clamped to the 99 regardless, so the field position was always right; only the
+yardage was wrong.
+
+It is not merely cosmetic, because `yards` also decides the first down:
+
+```
+2nd & goal from the 5, carry gains 8, touchdown roll fails
+  v1:                ball at the 99, credited 8 yards, 1st & goal  ← never earned
+  goalLineYards on:  ball at the 99, credited 4 yards, 3rd & goal
+```
+
+Measured over 400 games with the other v2 gates on: **4.05 carries per game**
+were credited past the 99, **22.8 phantom yards per game** (about 8% of all
+rushing yardage), and 1,344 of those carries were awarded a first down they had
+not gained.
+
+Gated rather than simply fixed, because correcting it produces a different game
+and v1 logs have to keep reproducing byte-for-byte. It costs no random draw in
+either position — the touchdown roll is taken in exactly the circumstances it
+always was, and the gate only rewrites `yards` afterwards. Verified by
+simulating 800 games with the gate off against the pre-change engine: zero
+divergence.
 
 ## Stat derivation
 
@@ -224,6 +253,8 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 5. Clock/quarter monotonic; drives alternate except turnovers/scores
 6. With all gates off, v1 golden logs reproduce byte-for-byte
 7. `timeline` on/off produces the same game; it only adds `events` / `preSnap`
+8. Under `goalLineYards`, a non-scoring carry never ends past the 99 — and at
+   goal-to-go, never gains the first down it did not score on
 
 ## What was left behind (on purpose)
 

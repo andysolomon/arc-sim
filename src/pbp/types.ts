@@ -442,4 +442,27 @@ export interface PbpFeatureGates {
    * for that.
    */
   timeline?: boolean;
+  /**
+   * A carry that reaches the goal line but is not ruled a touchdown is credited
+   * to the 99, not past it.
+   *
+   * A correction rather than a mechanic. `doRush` decides reaching the end zone
+   * and scoring separately: the carry can gain enough to cross the goal line and
+   * then fail the touchdown roll, and v1 left the yardage where it was. The ball
+   * was clamped to the 99 either way, so the field was right and only the
+   * bookkeeping was wrong — a back credited with 8 yards from the opponent's 5,
+   * and a rushing title inflated by the difference.
+   *
+   * It is gated rather than simply fixed because it changes the game, not just
+   * the record. `yards` decides the first down (`yards >= distance`), so with
+   * this off, a runner stopped at the 1 on 2nd-and-goal from the 5 is awarded a
+   * fresh set of downs he did not earn. Correcting that is right, and it is
+   * still a different game — so v1 logs keep reproducing byte-for-byte until a
+   * league opts in.
+   *
+   * Costs no random draw in either position: the touchdown roll is taken in
+   * exactly the same circumstances as before, and this only rewrites `yards`
+   * afterwards.
+   */
+  goalLineYards?: boolean;
 }

@@ -98,6 +98,9 @@ const MECHANIC_GATE = {
   weather: "weather",
   schemes: "schemes",
   timeline: "timeline",
+  // Without it, a carry stopped at the goal line kept the yards it did not
+  // gain, so rushing totals on such a log are an upper bound, not a count.
+  goalLineYards: "goalLineYards",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

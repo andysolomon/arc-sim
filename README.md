@@ -55,6 +55,7 @@ const log = simulateGameLog({
     injuries: true,
     schemes: true,
     timeline: true, // per-play event timelines, for a renderer
+    goalLineYards: true, // a carry stopped at the goal line stops at the 99
   },
 });
 

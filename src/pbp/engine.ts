@@ -971,10 +971,22 @@ function doRush(state: GameState): void {
     const recoverer = selectDefender(def, state, "tackle");
     participants.push(participant(fumbler, off.teamId, "fumbler"));
     participants.push(participant(recoverer, def.teamId, "recoverer"));
-  } else if (state.fieldPosition + yards >= 100 && state.rand() < tdProb + (yards >= 15 ? 0.15 : 0)) {
-    yards = 100 - state.fieldPosition;
-    isScoring = true;
-    points = 6;
+  } else if (state.fieldPosition + yards >= 100) {
+    /*
+     * The carry reached the goal line; whether he got in is a separate roll.
+     * The draw stays nested here rather than in the condition above so it is
+     * taken in exactly the circumstances it always was — hoisting it would
+     * shift every subsequent number in the sequence and divorce the log from v1.
+     */
+    if (state.rand() < tdProb + (yards >= 15 ? 0.15 : 0)) {
+      yards = 100 - state.fieldPosition;
+      isScoring = true;
+      points = 6;
+    } else if (state.features.goalLineYards) {
+      // Stopped short. He got to the 1, so that is what he is credited with —
+      // and, at goal-to-go, that is short of the line to gain (see the gate).
+      yards = 99 - state.fieldPosition;
+    }
   }
 
   const play: PbpPlay = {
@@ -1763,6 +1775,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       injuries: input.features?.injuries === true,
       schemes: input.features?.schemes === true,
       timeline: input.features?.timeline === true,
+      goalLineYards: input.features?.goalLineYards === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

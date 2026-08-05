@@ -95,3 +95,54 @@ describe("simulateGameLog", () => {
     expect(withPassing.length).toBeGreaterThan(0);
   });
 });
+
+describe("goalLineYards gate", () => {
+  const BASE = {
+    scoringV2: true,
+    penalties: true,
+    situational: true,
+    balance: true,
+    schemes: true,
+  };
+
+  function carries(goalLineYards: boolean) {
+    return Array.from({ length: 12 }, (_, i) =>
+      simulateGameLog({
+        home: team("home", 74),
+        away: team("away", 66),
+        seed: seedFor("pbp", "goal-line", String(i)),
+        features: { ...BASE, goalLineYards },
+      }),
+    )
+      .flatMap((log) => log.drives.flatMap((drive) => drive.plays))
+      .filter((p) => p.playType === "rush" && !p.isScoring && !p.isTurnover);
+  }
+
+  it("credits a carry stopped at the goal line to the 99, not past it", () => {
+    for (const play of carries(true)) {
+      expect(play.fieldPosition + play.yardsGained).toBeLessThanOrEqual(99);
+    }
+  });
+
+  it("stops awarding a first down for being stopped short", () => {
+    /*
+     * At goal-to-go the line to gain IS the goal line, so a carry that did not
+     * score cannot have reached it. This is the half of the fix that changes
+     * the game rather than the bookkeeping.
+     */
+    for (const play of carries(true)) {
+      if (play.down > 0 && play.fieldPosition + play.distance >= 100) {
+        expect(play.yardsGained).toBeLessThan(play.distance);
+      }
+    }
+  });
+
+  it("leaves the v1 behaviour alone when off", () => {
+    // Also proves the sweep above actually exercises the path — a green test
+    // over games where no carry ever reached the goal line would prove nothing.
+    const overruns = carries(false).filter(
+      (p) => p.fieldPosition + p.yardsGained > 99,
+    );
+    expect(overruns.length).toBeGreaterThan(0);
+  });
+});
