@@ -1,5 +1,7 @@
 # arc-sim
 
+[![CI](https://github.com/andysolomon/arc-sim/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/andysolomon/arc-sim/actions/workflows/ci.yml)
+
 Deterministic American football **play-by-play** simulation engine.
 
 Extracted from the [sprtsmng](https://github.com/andysolomon/sprtsmng) Dynasty Mode
