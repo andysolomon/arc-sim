@@ -178,6 +178,32 @@ Ported from sprtsmng at engine version **2.0.0**, covering:
 Host-app concerns (Convex persistence, Gamecast UI, dynasty progression) stay in
 sprtsmng. This package is the portable simulation core.
 
+## Releasing
+
+Publishing happens from CI, not from a laptop, so every release carries npm
+**provenance** — a signed attestation tying the exact tarball to the commit and
+workflow run that built it. A consumer can verify the code on npm is the code in
+this repo rather than taking it on trust.
+
+```bash
+# 1. bump the version and land it
+npm version minor && git push --follow-tags
+
+# 2. cut a GitHub release on that tag — publishing is the release
+gh release create v0.2.0 --generate-notes
+```
+
+The release job re-runs type-check, tests, build and `dist-check` before
+publishing, because "CI was green on this commit" is a claim about a different
+job. It then refuses to publish if the tag disagrees with `package.json`, or if
+that version already exists on npm — both mistakes are permanent once made.
+
+`workflow_dispatch` runs the same job in dry-run mode, so the pipeline can be
+exercised without publishing anything.
+
+**One-time setup:** an npm automation token in the repository's secrets as
+`NPM_TOKEN`.
+
 ## License
 
 MIT © Andrew Solomon — see [LICENSE](./LICENSE).
