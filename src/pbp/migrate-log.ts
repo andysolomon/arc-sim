@@ -63,7 +63,24 @@ export function normalizeGameLog(
     };
   }
 
-  const drives = Array.isArray(raw.drives) ? raw.drives : [];
+  /*
+   * Corruption is not only a top-level problem.
+   *
+   * Checking `raw` and then casting `raw.drives` straight through made the
+   * tolerance exactly one level deep: `normalizeGameLog` survived anything, and
+   * a single `null` in the drives array then threw a TypeError out of
+   * `normalizedPlays` — crashing the page that lists games on precisely the
+   * corrupt row this module exists to contain.
+   *
+   * A junk drive becomes an empty one rather than disappearing, so the drive
+   * chart keeps its shape and the gap is visible instead of silently closing up.
+   */
+  const drives = Array.isArray(raw.drives)
+    ? raw.drives.filter(isRecord).map((drive) => ({
+        ...drive,
+        plays: Array.isArray(drive.plays) ? drive.plays.filter(isRecord) : [],
+      }))
+    : [];
 
   return {
     seed: typeof raw.seed === "number" ? raw.seed : 0,
@@ -72,10 +89,18 @@ export function normalizeGameLog(
     awayTeamId: typeof raw.awayTeamId === "string" ? raw.awayTeamId : "",
     homeScore: typeof raw.homeScore === "number" ? raw.homeScore : 0,
     awayScore: typeof raw.awayScore === "number" ? raw.awayScore : 0,
-    // Drives and plays pass through untouched. The v2 additions are all
-    // optional, so a v1 play already satisfies the current `PbpPlay` type —
-    // there is nothing to fill in, and filling anything in would be a lie.
-    drives: drives as PbpGameLog["drives"],
+    /*
+     * A play's CONTENTS pass through untouched. Every v2 addition is optional,
+     * so a v1 play already satisfies the current `PbpPlay` type — there is
+     * nothing to fill in, and filling anything in would be a lie.
+     *
+     * The double cast is honest about what this function can and cannot know.
+     * It has checked that a drive is an object and its plays are objects; it
+     * has NOT checked that each play has a `playType`, and it must not, because
+     * a stricter reading would start discarding fields a future engine added.
+     * Tolerant on shape, silent on content.
+     */
+    drives: drives as unknown as PbpGameLog["drives"],
     // Gates pass through as recorded. An unreadable value is treated as
     // "nothing was modelled", which is the conservative reading.
     features: isRecord(raw.features)
