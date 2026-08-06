@@ -536,4 +536,18 @@ export interface PbpFeatureGates {
    * not match his team's touchdowns.
    */
   defensivePat?: boolean;
+  /**
+   * A carry can be stopped at or behind the line.
+   *
+   * v1 drew rushing yardage from `2 + rand()*5 + edge*4`, whose floor is two
+   * yards — so across five thousand carries not one lost a yard and only 2%
+   * gained nothing, against roughly 9% and 19% in the real sport. A back was
+   * never tackled for a loss, which made `tfl` dead code for runs, pushed
+   * rushing to 135 yards a team a game against a real 115, and let a carry
+   * reach the goal line as readily as a pass.
+   *
+   * Replaces the single curve with the three outcomes a carry actually has:
+   * stuffed at the line, the ordinary grind, or a run that breaks.
+   */
+  rushDistribution?: boolean;
 }

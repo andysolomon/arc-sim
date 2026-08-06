@@ -95,6 +95,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `returnStats` | Punt returns record the yardage they actually gained |
 | `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
 | `defensivePat` | A defensive touchdown attempts the extra point that follows it |
+| `rushDistribution` | A carry can be stuffed at or behind the line |
 
 ### Presets
 
@@ -296,6 +297,56 @@ decision that is wrong more often than right.
 Measured over 400 games: 35 defensive touchdowns, 35 tries, 34 made. The gate
 draws nothing outside that branch — of 400 games, exactly the 34 containing a
 defensive touchdown diverged, and the other 366 were identical play for play.
+
+## What a carry gains (`rushDistribution` gate)
+
+v1 drew rushing yardage from `2 + rand()*5 + edge*4`. That expression has a
+floor of two yards before the edge is added, so there is no arithmetic path
+through it to being stopped. Over ten thousand carries:
+
+| | v1 | `rushDistribution` | real football |
+| --- | --- | --- | --- |
+| mean | 5.49 | **4.23** | ~4.3 |
+| median | 5 | **3** | 3 |
+| lost yards | **0.0%** | **9.4%** | ~9% |
+| no gain or worse | 2.2% | **20.9%** | ~19% |
+| 10+ | 7.5% | **10.9%** | ~11% |
+| 20+ | 3.9% | 2.5% | ~3% |
+| longest | 30 | **58** | house calls happen |
+
+A carry is three outcomes, not one curve: the defense wins at the line, the run
+grinds out what is blocked, or it breaks. Modelling them separately is what
+produces football's shape — a left tail that exists at all, a low median, and a
+mean dragged up by a thin right tail.
+
+Two consequences beyond texture. **`tfl` was dead code**: `isNegativePlay`
+requires a rush with negative yardage, so every tackle for loss in a v1 game was
+a sack. And a carry that could never be stopped reached the goal line as readily
+as a pass, which is most of what left the touchdown split at 51% rushing.
+
+The scheme multiplier deliberately does not apply to a stuff. `scheme.rushYards`
+drops below 1 when the box is stacked, and multiplying a *negative* by it would
+make a good run defense produce **smaller** losses. A stouter front raises the
+stuff rate instead, which is the thing it should actually change.
+
+### What this exposed
+
+Fixing the run did not fix the touchdown split, and that is the finding:
+
+| per team per game | now | real |
+| --- | --- | --- |
+| rushing yards | 108 | ~115 |
+| passing yards | 128 | ~230 |
+| completion rate | 53% | ~65% |
+| dropbacks | 27 | ~34 |
+| TD split | 44% rushing | 35–40% |
+| combined points | 27 | ~44 |
+
+The run was propping up the offense. With it corrected, the passing game is
+visibly underpowered — too few dropbacks, and a completion rate twelve points
+light — and scoring fell from 33 to 27 points a game as a result. That is a
+separate defect this change revealed rather than caused, and compensating for it
+by leaving the run wrong would have been the wrong repair.
 
 ## Stat derivation
 

@@ -138,6 +138,9 @@ const MECHANIC_GATE = {
   // Without it a defensive touchdown is worth exactly six, so a kicker's
   // extra points will not match his team's touchdowns.
   defensivePat: "defensivePat",
+  // Without it a carry could not be stopped for a loss, so rushing totals run
+  // high and no defender was ever credited with a tackle for loss on a run.
+  rushDistribution: "rushDistribution",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

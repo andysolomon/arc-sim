@@ -1126,6 +1126,73 @@ function doPuntWithReturn(
   startDrive(state, offenseTeamId(state), clamp(startSpot, 1, 99));
 }
 
+/*
+ * ── Carry yardage (`rushDistribution` gate) ───────────────────────────────
+ *
+ * v1 drew a carry from `2 + rand()*5 + edge*4`, which has a floor of two yards
+ * before the edge is added. There is no arithmetic path through it to being
+ * stopped, so across five thousand carries not one run lost a yard and only 2%
+ * gained nothing — against roughly 9% and 19% in the real sport.
+ *
+ * That is not only a texture problem. It made `tfl` dead code for runs (every
+ * tackle for loss in a game was a sack), it pushed rushing to 135 yards a team
+ * a game against a real 115, and because a carry could never be stuffed it
+ * reached the goal line as readily as a pass did — which is what left the
+ * touchdown split at 49% rushing against a real 35-40%.
+ *
+ * A carry is really three outcomes, not one curve: the defense wins at the
+ * line, the run grinds out what is blocked for it, or it breaks. Modelling
+ * them separately is what produces football's shape — a left tail that exists,
+ * a low median, and a mean dragged up by a thin right tail.
+ */
+
+/** Carries stopped at or behind the line. Real football: about a fifth. */
+const STUFF_RATE = 0.19;
+/** Of those, roughly half are no gain and half are an actual loss. */
+const STUFF_LOSS_SKEW = 3.6;
+/** The grind: blocked for a few yards, occasionally more. */
+const CARRY_SKEW = 2.1;
+const CARRY_SPAN = 10;
+/** A run that breaks the second level. */
+const BREAK_SKEW = 4.2;
+const BREAK_SPAN = 50;
+
+function carryYards(
+  state: GameState,
+  edge: number,
+  scheme: SchemeModifiers,
+): number {
+  /*
+   * A stouter run defence stuffs more, rather than merely shaving a yard off
+   * every carry. `scheme.rushYards` is a yardage multiplier below 1 when the
+   * box is stacked, so it inverts into a stuff rate — and a better offense is
+   * stopped less often.
+   */
+  const stuffRate = clamp(STUFF_RATE / Math.max(0.6, scheme.rushYards) - edge * 0.02, 0.06, 0.4);
+  if (state.rand() < stuffRate) {
+    /*
+     * Met at or behind the line. Skewed hard toward zero: most stuffs are no
+     * gain, and the scheme multiplier deliberately does NOT apply — a stacked
+     * box should produce more losses, not smaller ones, and multiplying a
+     * negative by a number below 1 would do exactly the wrong thing.
+     */
+    return -Math.round(Math.pow(state.rand(), STUFF_LOSS_SKEW) * 5);
+  }
+
+  const broke =
+    state.rand() <
+    (0.12 + edge * 0.05) * state.weatherMods.explosiveRate * scheme.explosiveRate;
+  if (broke) {
+    return Math.round(
+      (9 + Math.pow(state.rand(), BREAK_SKEW) * BREAK_SPAN) * scheme.rushYards,
+    );
+  }
+  return Math.round(
+    (1 + Math.pow(state.rand(), CARRY_SKEW) * CARRY_SPAN + edge * 1.2) *
+      scheme.rushYards,
+  );
+}
+
 /**
  * A carry or a catch whose yardage reaches the goal line. Was he stopped short?
  *
@@ -1159,15 +1226,20 @@ function doRush(state: GameState): void {
     state.weatherMods.fumbleRate *
     scheme.fumbleRate;
   const tdProb = clamp(0.055 + edge * 0.08, 0.02, 0.15);
-  const explosive =
-    state.rand() <
-    (0.08 + edge * 0.05) *
-      state.weatherMods.explosiveRate *
-      scheme.explosiveRate;
-  let yards = explosive
-    ? Math.round((12 + state.rand() * 18) * scheme.rushYards)
-    : Math.round((2 + state.rand() * 5 + edge * 4) * scheme.rushYards);
-  yards = Math.max(-3, yards);
+  let yards: number;
+  if (state.features.rushDistribution) {
+    yards = carryYards(state, edge, scheme);
+  } else {
+    const explosive =
+      state.rand() <
+      (0.08 + edge * 0.05) *
+        state.weatherMods.explosiveRate *
+        scheme.explosiveRate;
+    yards = explosive
+      ? Math.round((12 + state.rand() * 18) * scheme.rushYards)
+      : Math.round((2 + state.rand() * 5 + edge * 4) * scheme.rushYards);
+    yards = Math.max(-3, yards);
+  }
 
   const participants: PbpParticipant[] = [
     participant(rusher, off.teamId, "rusher"),
@@ -2025,6 +2097,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
         input.features?.returnStats === true || input.features?.puntReturns === true,
       puntReturns: input.features?.puntReturns === true,
       defensivePat: input.features?.defensivePat === true,
+      rushDistribution: input.features?.rushDistribution === true,
     },
     snaps: new Map(),
     unavailable: new Set(),
