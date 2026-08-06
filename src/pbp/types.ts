@@ -550,4 +550,24 @@ export interface PbpFeatureGates {
    * stuffed at the line, the ordinary grind, or a run that breaks.
    */
   rushDistribution?: boolean;
+  /**
+   * Call plays the way a high-school offense calls them.
+   *
+   * The baseline split was 52% pass, which is a professional number. It had
+   * teams throwing 25 times and handing off 25; varsity football runs it 35 to
+   * 40 times and throws it 15 to 20. The engine is a high-school engine —
+   * twelve-minute quarters, one overtime timeout, a 52-yard field goal at the
+   * edge of plausible — and the split should match the sport it models.
+   */
+  playCalling?: boolean;
+  /**
+   * A high-school completion travels further than a professional one.
+   *
+   * Not because the passing is better — it is worse, and the completion rate is
+   * left alone — but because the throws are different: fewer, deeper balls
+   * against defenses that cannot cover as long. Modelling it as a pro-style
+   * checkdown game left passing at 97 yards a team against a varsity 110-150,
+   * on an otherwise realistic number of attempts.
+   */
+  passingGame?: boolean;
 }

@@ -45,6 +45,8 @@ export const V1_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   puntReturns: false,
   defensivePat: false,
   rushDistribution: false,
+  playCalling: false,
+  passingGame: false,
 });
 
 /**
@@ -75,6 +77,8 @@ export const RECOMMENDED_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   puntReturns: true,
   defensivePat: true,
   rushDistribution: true,
+  playCalling: true,
+  passingGame: true,
 });
 
 /**
@@ -98,4 +102,6 @@ export const ALL_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   puntReturns: true,
   defensivePat: true,
   rushDistribution: true,
+  playCalling: true,
+  passingGame: true,
 });

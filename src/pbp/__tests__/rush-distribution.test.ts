@@ -7,10 +7,16 @@
  * before the edge, so there was no arithmetic path through it to being stopped.
  * Across ten thousand carries not one lost a yard.
  *
- * The numbers checked below are the real sport's, loosely banded. They are
- * bands rather than points on purpose — this is a game, not a projection, and
- * pinning a mean to two decimals would turn every future tuning pass into a
- * test edit.
+ * The numbers checked below are **high school** football's, loosely banded.
+ * That matters: this engine plays twelve-minute quarters, allows one overtime
+ * timeout and puts a 52-yard field goal at the edge of plausible. Calibrating
+ * it against professional numbers — a 4.3-yard carry, a 65% completion rate —
+ * produces a game that is wrong in a way every aggregate agrees on, which is a
+ * mistake this file exists partly to prevent repeating.
+ *
+ * Bands rather than points on purpose: this is a game, not a projection, and
+ * pinning a mean to two decimals turns every future tuning pass into a test
+ * edit.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -96,16 +102,17 @@ describe("the shape of a carry", () => {
   });
 
   it("averages what a carry averages, and typically less", () => {
-    // Mean near 4, median below it — the signature of a distribution whose
-    // average is carried by a thin right tail rather than by the typical run.
-    expect(mean(V2)).toBeGreaterThan(3.4);
-    expect(mean(V2)).toBeLessThan(5);
+    // Varsity backs average around five a carry against defenses that miss more
+    // tackles, with the median below the mean — the signature of a distribution
+    // carried by a thin right tail rather than by the typical run.
+    expect(mean(V2)).toBeGreaterThan(4);
+    expect(mean(V2)).toBeLessThan(6.2);
     expect(percentile(V2, 0.5)).toBeLessThan(mean(V2));
   });
 
   it("breaks a long one occasionally, and a huge one rarely", () => {
     expect(share(V2, (y) => y >= 10)).toBeGreaterThan(0.07);
-    expect(share(V2, (y) => y >= 10)).toBeLessThan(0.16);
+    expect(share(V2, (y) => y >= 10)).toBeLessThan(0.2);
     expect(share(V2, (y) => y >= 20)).toBeLessThan(0.05);
     // A run that goes the distance has to be possible at all.
     expect(Math.max(...V2)).toBeGreaterThan(35);
@@ -159,10 +166,12 @@ describe("what the shape changes downstream", () => {
       ) /
       (logs.length * 2);
 
+    // A varsity team runs for 150-180 on a full workload; these games are
+    // measured without the high-school play-calling split, so the band is wide.
     const after = perTeamGame(games(true, 40));
-    expect(after).toBeGreaterThan(80);
-    expect(after).toBeLessThan(140);
-    // And strictly less than the model that could not be stopped.
+    expect(after).toBeGreaterThan(100);
+    expect(after).toBeLessThan(210);
+    // And strictly less than the model that could not be stopped at all.
     expect(after).toBeLessThan(perTeamGame(games(false, 40)));
   });
 });

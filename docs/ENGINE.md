@@ -96,6 +96,8 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
 | `defensivePat` | A defensive touchdown attempts the extra point that follows it |
 | `rushDistribution` | A carry can be stuffed at or behind the line |
+| `playCalling` | Run-pass split matched to high school, not the pros |
+| `passingGame` | A completion travels a varsity distance, not a pro checkdown |
 
 ### Presets
 
@@ -329,24 +331,39 @@ drops below 1 when the box is stacked, and multiplying a *negative* by it would
 make a good run defense produce **smaller** losses. A stouter front raises the
 stuff rate instead, which is the thing it should actually change.
 
-### What this exposed
+## Calibrated for high school, not the pros
 
-Fixing the run did not fix the touchdown split, and that is the finding:
+This engine plays twelve-minute quarters, allows one overtime timeout, and puts
+a 52-yard field goal at the edge of plausible. It models **varsity high school
+football**, and every constant should be read that way — a fact worth stating
+plainly here, because it is easy to miss and expensive to miss.
 
-| per team per game | now | real |
-| --- | --- | --- |
-| rushing yards | 108 | ~115 |
-| passing yards | 128 | ~230 |
-| completion rate | 53% | ~65% |
-| dropbacks | 27 | ~34 |
-| TD split | 44% rushing | 35–40% |
-| combined points | 27 | ~44 |
+Calibrating against professional numbers produces a game that is wrong in a way
+every aggregate agrees on. Rushing was tuned to a 4.3-yard NFL carry when a
+varsity back averages nearer five; the run-pass split sat at 52% pass, a
+professional figure, when high school runs it 35 to 40 times and throws 15 to
+20; and a completion was modelled as a pro checkdown when varsity passing is
+fewer, deeper balls against defenses that cannot cover as long.
 
-The run was propping up the offense. With it corrected, the passing game is
-visibly underpowered — too few dropbacks, and a completion rate twelve points
-light — and scoring fell from 33 to 27 points a game as a result. That is a
-separate defect this change revealed rather than caused, and compensating for it
-by leaving the run wrong would have been the wrong repair.
+`playCalling` and `passingGame` fix the second and third. With all three on:
+
+| per team per game | v1 | now | varsity |
+| --- | --- | --- | --- |
+| plays | 53 | 50 | 50-55 |
+| carries | 25 | 31 | 35-40 |
+| rushing yards | 139 | 158 | 150-180 |
+| pass attempts | 26 | 18 | 15-20 |
+| completion rate | 58% | 57% | 50-55% |
+| passing yards | 144 | 115 | 110-150 |
+| TD split | 53% rush | 61% rush | 55-65% |
+| combined points | 33 | 31.5 | ~42+ |
+
+Scoring is the one that has not landed. Offenses reach the red zone 2.9 times a
+game and convert 51% of those into touchdowns — the conversion is right, the
+volume is not, because drives stall around the opponent's 40. Pushing the split
+further toward the run makes it worse rather than better: passing is the more
+efficient play here, so a more authentic play mix costs points. That tension is
+unresolved and is the next thing worth working on.
 
 ## Stat derivation
 

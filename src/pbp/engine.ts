@@ -1151,7 +1151,7 @@ const STUFF_RATE = 0.19;
 /** Of those, roughly half are no gain and half are an actual loss. */
 const STUFF_LOSS_SKEW = 3.6;
 /** The grind: blocked for a few yards, occasionally more. */
-const CARRY_SKEW = 2.1;
+const CARRY_SKEW = 1.55;
 const CARRY_SPAN = 10;
 /** A run that breaks the second level. */
 const BREAK_SKEW = 4.2;
@@ -1181,7 +1181,7 @@ function carryYards(
 
   const broke =
     state.rand() <
-    (0.12 + edge * 0.05) * state.weatherMods.explosiveRate * scheme.explosiveRate;
+    (0.15 + edge * 0.05) * state.weatherMods.explosiveRate * scheme.explosiveRate;
   if (broke) {
     return Math.round(
       (9 + Math.pow(state.rand(), BREAK_SKEW) * BREAK_SPAN) * scheme.rushYards,
@@ -1464,12 +1464,22 @@ function doPass(state: GameState): void {
 
   const explosive =
     state.rand() <
-    (0.1 + edge * 0.06) *
+    (state.features.passingGame ? 0.13 : 0.1) * (1 + edge * 0.6) *
       state.weatherMods.explosiveRate *
       scheme.explosiveRate;
+  /*
+   * A high-school completion travels further than a professional one.
+   *
+   * Not because the passing is better — it is worse, and the completion rate
+   * stays where it is — but because the throws are different. Varsity offenses
+   * throw fewer, deeper balls against defenses that cannot cover as long, so
+   * the yards arrive per completion rather than per attempt. Modelling it as a
+   * pro-style 4-13 checkdown game left passing at 97 yards a team against a
+   * varsity 110-150, on a realistic number of attempts.
+   */
   let yards = explosive
     ? Math.round(15 + state.rand() * 25)
-    : Math.round(4 + state.rand() * 9 + edge * 5);
+    : Math.round(4 + state.rand() * (state.features.passingGame ? 12 : 9) + edge * 5);
   let isScoring = false;
   let points = 0;
   const participants: PbpParticipant[] = [
@@ -1910,11 +1920,19 @@ function runFourthDownV1(state: GameState): void {
 
 function runNormalDownPlay(state: GameState, tempo: ClockStrategy): void {
   const edge = matchupEdge(state);
-  let passRate = clamp(
-    0.52 + edge * 0.1 - (state.down === 1 ? 0 : 0.08),
-    0.38,
-    0.68,
-  );
+  /*
+   * High school is a running sport, and this engine is a high-school engine —
+   * twelve-minute quarters, one overtime timeout, a 52-yard field goal at the
+   * edge of plausible. A 52% baseline is a professional split; it had teams
+   * throwing 25 times and handing off 25, where varsity football runs it 35 to
+   * 40 times and throws it 15 to 20.
+   *
+   * The down adjustment grows too. A pro offense on 2nd-and-8 is still likely
+   * to throw; a high-school offense is likely to run it again.
+   */
+  let passRate = state.features.playCalling
+    ? clamp(0.36 + edge * 0.1 - (state.down === 1 ? 0 : 0.04), 0.2, 0.62)
+    : clamp(0.52 + edge * 0.1 - (state.down === 1 ? 0 : 0.08), 0.38, 0.68);
   /*
    * Scheme moves the split (A6), and it needs a wider band than the baseline
    * clamp allows — a Flexbone that still throws it 38% of the time is not a
@@ -2098,6 +2116,8 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       puntReturns: input.features?.puntReturns === true,
       defensivePat: input.features?.defensivePat === true,
       rushDistribution: input.features?.rushDistribution === true,
+      playCalling: input.features?.playCalling === true,
+      passingGame: input.features?.passingGame === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

@@ -141,6 +141,10 @@ const MECHANIC_GATE = {
   // Without it a carry could not be stopped for a loss, so rushing totals run
   // high and no defender was ever credited with a tackle for loss on a run.
   rushDistribution: "rushDistribution",
+  // Without it the run-pass split is a professional one, not a high-school one.
+  playCalling: "playCalling",
+  // Without it a completion is a pro-style checkdown, not a varsity deep ball.
+  passingGame: "passingGame",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;
