@@ -146,8 +146,13 @@ docs/
   ENGINE.md         architecture deep-dive
 ```
 
-`src/render` is the only place Three.js may be imported, and only in
-`scene.ts` — a test enforces both.
+`src/render` is the only place Three.js may be imported, and only in the two
+files that draw — `scene.ts` and `rig.ts`. A test enforces both, so the
+choreographer stays plain numbers and stays testable in Node.
+
+Players are voxel rigs built from box geometry at three levels of detail, not
+loaded from a model file: the package ships no binary assets and needs no
+loader.
 
 ## Provenance
 

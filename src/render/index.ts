@@ -65,3 +65,10 @@ export {
   type FootballSceneOptions,
   type TeamAppearance,
 } from "./scene.js";
+
+export {
+  PlayerRig,
+  disposeRigGeometries,
+  type RigColors,
+  type RigTier,
+} from "./rig.js";

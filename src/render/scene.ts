@@ -6,14 +6,16 @@ import {
   type PlayAnimation,
 } from "./animation.js";
 import { END_ZONE_DEPTH, FIELD_LENGTH, FIELD_WIDTH, UPRIGHT_DEPTH } from "./field.js";
+import { PlayerRig, disposeRigGeometries, type RigTier } from "./rig.js";
 
 /*
- * The scene (A8) — the only file in this package that knows Three.js exists.
+ * The scene (A8) — with `rig.ts`, one of the two files in this package that
+ * know Three.js exists.
  *
  * Everything above it is numbers: the engine decides the game, `timeline.ts`
  * decides the beats, `choreographer.ts` decides the motion. This file just
- * draws it, which is why swapping the placeholder capsules for the voxel /
- * medium / hero rigs later touches nothing but `PlayerActor`.
+ * draws it — and because the split held, replacing the placeholder capsules
+ * with the voxel / medium / hero rigs changed `PlayerActor` and nothing else.
  *
  * Playback is decoupled from simulation on purpose. The engine finishes a game
  * in milliseconds; the scene replays it at whatever speed the viewer wants —
@@ -53,99 +55,106 @@ const ACTOR_IDS = [
 ];
 
 /**
+ * Distances at which a player drops a level of detail.
+ *
+ * Calibrated against where the camera actually is, which is the whole trick.
+ * It sits `CAMERA_HEIGHT` up and `CAMERA_SIDELINE` across, so it is never close
+ * to anybody: the nearest a player ever gets is about 37 yards (near sideline,
+ * level with the ball) and the far sideline is about 77. Thresholds picked by
+ * eye — 26 and 52, say — put the whole field beyond the near band, and every
+ * player renders at the middle tier forever while the code reads as though
+ * three tiers were in use.
+ *
+ *   near sideline, at the ball  ~37
+ *   midfield, at the ball       ~55
+ *   far sideline                ~77
+ */
+const TIER_NEAR = 50;
+const TIER_FAR = 66;
+
+/** How fast the legs turn over, in radians of gait per yard travelled. */
+const GAIT_PER_YARD = 2.2;
+
+/**
  * One player.
  *
- * A capsule and a helmet — roughly 200 triangles, which is under the voxel tier
- * and deliberately so: this is a placeholder that proves the seam, not the art.
- * `setTier` is where the LOD ladder lands. Swapping in a `SkinnedMesh` per tier
- * changes this class and nothing else, because everything upstream addresses
- * actors by `actorId` and asks them for a clip by name.
+ * Owns a `PlayerRig` and the state a rig has no business knowing: where the man
+ * is, which way he faces, how far he has run and therefore where his legs are
+ * in their cycle. Everything upstream addresses actors by `actorId` and asks
+ * for a clip by name, so none of it changes when the rig does.
  */
 export class PlayerActor {
   readonly group = new THREE.Group();
-  private readonly body: THREE.Mesh;
-  private readonly helmet: THREE.Mesh;
-  private readonly shadow: THREE.Mesh;
+  private readonly rig: PlayerRig;
   private clip: ActorClip = "stance";
+  private phase = 0;
+  private readonly last = new THREE.Vector3();
+  private placed = false;
 
   constructor(appearance: TeamAppearance) {
-    this.body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.42, 1.05, 3, 8),
-      new THREE.MeshLambertMaterial({ color: appearance.primary }),
-    );
-    this.body.position.y = 1.05;
-
-    this.helmet = new THREE.Mesh(
-      new THREE.SphereGeometry(0.33, 10, 8),
-      new THREE.MeshLambertMaterial({ color: appearance.secondary }),
-    );
-    this.helmet.position.y = 1.9;
-
-    // A blob under each player. Cheaper than a shadow map by orders of
-    // magnitude and, at broadcast distance, the only cue that actually reads:
-    // without it twenty-two capsules look like they are hovering.
-    this.shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.5, 12),
-      new THREE.MeshBasicMaterial({
-        color: 0x0a1a0a,
-        transparent: true,
-        opacity: 0.28,
-      }),
-    );
-    this.shadow.rotation.x = -Math.PI / 2;
-    this.shadow.position.y = 0.02;
-
-    this.group.add(this.body, this.helmet, this.shadow);
+    this.rig = new PlayerRig(appearance, "medium");
+    this.group.add(this.rig.group);
   }
 
   setAppearance(appearance: TeamAppearance): void {
-    (this.body.material as THREE.MeshLambertMaterial).color.setHex(appearance.primary);
-    (this.helmet.material as THREE.MeshLambertMaterial).color.setHex(
-      appearance.secondary,
+    this.rig.setColors(appearance);
+  }
+
+  /**
+   * Move him, and advance his gait by how far he actually travelled.
+   *
+   * Tying the cycle to distance rather than to the clock is what stops
+   * twenty-two men jogging on the spot between snaps — and it makes the gait
+   * automatically correct at 6× speed, where a clock-driven one would sprint.
+   */
+  place(x: number, y: number, z: number, heading: number): void {
+    if (this.placed) {
+      this.phase += this.last.distanceTo(TEMP.set(x, y, z)) * GAIT_PER_YARD;
+    }
+    this.last.set(x, y, z);
+    this.placed = true;
+    this.group.position.set(x, y, z);
+    this.group.rotation.y = heading;
+  }
+
+  setClip(clip: ActorClip): void {
+    this.clip = clip;
+  }
+
+  /** Apply the current clip and gait. Called once per frame, after `place`. */
+  refresh(): void {
+    this.rig.pose(this.clip, this.phase);
+  }
+
+  /**
+   * Level of detail for this player, by distance from the camera.
+   *
+   * Tier selection lives here rather than in the choreographer, which does not
+   * know a camera exists — and must not, or the layout would depend on where
+   * someone was looking and replays would stop being reproducible.
+   */
+  updateTier(cameraPosition: THREE.Vector3): void {
+    const distance = cameraPosition.distanceTo(this.group.position);
+    this.rig.setTier(
+      distance < TIER_NEAR ? "hero" : distance < TIER_FAR ? "medium" : "low",
     );
   }
 
-  /**
-   * Pose for a named clip.
-   *
-   * Placeholder poses, not animation: a capsule has no skeleton to drive. They
-   * exist so the clip channel is visibly WIRED — if the choreographer says a
-   * man is down, he is on the ground — and so the day a rig arrives, the only
-   * thing that changes here is what a clip name does.
-   */
-  setClip(clip: ActorClip): void {
-    if (clip === this.clip) return;
-    this.clip = clip;
-    const down = clip === "tackled";
-    const crouch = clip === "stance" || clip === "block" || clip === "kneel";
-
-    this.body.rotation.z = down ? Math.PI / 2 : 0;
-    this.body.position.y = down ? 0.45 : crouch ? 0.92 : 1.05;
-    this.helmet.position.y = down ? 0.5 : crouch ? 1.72 : 1.9;
-    this.helmet.position.x = down ? 0.75 : 0;
-    this.group.scale.y = clip === "celebrate" ? 1.12 : 1;
+  tier(): RigTier {
+    return this.rig.currentTier();
   }
 
-  /**
-   * LOD seam (not yet implemented).
-   *
-   * The plan this package is built for is three rigs on one skeleton — voxel
-   * for everyone, medium in the action bubble, hero for replays. Nothing above
-   * this class needs to know which is loaded, so tier selection belongs here
-   * and the choreographer never learns about it.
-   */
-  setTier(_tier: "low" | "medium" | "hero"): void {
-    // No-op until the GLBs exist. Documented rather than silently absent so the
-    // next person knows where it goes.
+  triangleCount(): number {
+    return this.rig.triangleCount();
   }
 
   dispose(): void {
-    for (const mesh of [this.body, this.helmet, this.shadow]) {
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-    }
+    this.rig.dispose();
   }
 }
+
+/** Scratch vector, so `place` allocates nothing on the hot path. */
+const TEMP = new THREE.Vector3();
 
 export class FootballScene {
   readonly scene = new THREE.Scene();
@@ -265,6 +274,12 @@ export class FootballScene {
     }
 
     this.followBall(dt, this.speed === 0 ? 1 : 0.06);
+    // After the camera moves, so a player is tiered by where the camera ended
+    // up rather than where it was a frame ago.
+    for (const actor of this.actors.values()) {
+      actor.updateTier(this.camera.position);
+      actor.refresh();
+    }
 
     if (this.elapsed >= play.duration) {
       this.current = null;
@@ -292,6 +307,9 @@ export class FootballScene {
 
   dispose(): void {
     for (const actor of this.actors.values()) actor.dispose();
+    // The box geometries are shared across every actor, so they are released
+    // once here rather than twenty-two times above.
+    disposeRigGeometries();
     this.ball.geometry.dispose();
     (this.ball.material as THREE.Material).dispose();
     this.renderer.dispose();
@@ -336,8 +354,7 @@ export class FootballScene {
 }
 
 function applySample(actor: PlayerActor, sample: ActorSample): void {
-  actor.group.position.set(sample.pos.x, sample.pos.y, sample.pos.z);
-  actor.group.rotation.y = sample.heading;
+  actor.place(sample.pos.x, sample.pos.y, sample.pos.z, sample.heading);
   actor.setClip(sample.clip);
 }
 

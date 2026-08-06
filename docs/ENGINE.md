@@ -260,6 +260,7 @@ render/scene.ts → pixels            the only Three file
 | `render/choreographer.ts` | Play + events → 23 keyframed tracks |
 | `render/animation.ts` | Track/keyframe types + sampling |
 | `render/describe.ts` | Play → English (also a text play-by-play feed) |
+| `render/rig.ts` | The player: box geometry, a pivot skeleton, poses, LOD |
 | `render/scene.ts` | Three.js field, actors, playback, broadcast camera |
 
 **The contract.** Choreography may invent *how*, never *what*. Every position
@@ -276,6 +277,36 @@ unreproducible.
 slots once, and every beat reads that casting rather than re-deriving it. One
 body per player, even when the engine credits the same man with a solo tackle
 and an assist.
+
+**The players are built, not loaded.** Voxel art is boxes, so `rig.ts` makes
+them rather than fetching a GLB. That keeps the package free of binary assets, a
+loader, a decode step and a CDN, and it draws the same offline as online — a
+model file would have to be versioned, licensed and kept in sync with the clip
+names, and twenty lines of `BoxGeometry` do not.
+
+Parts hang off pivots at the shoulder and hip, so a pose is a rotation rather
+than a teleport, and a running gait is possible at all. The gait advances with
+**distance travelled, not time** — which is why players stand still between
+snaps instead of jogging on the spot, and why the legs stay right at 6× speed.
+
+Three tiers, chosen per player per frame by distance from the camera:
+
+| tier | triangles | when |
+| --- | --- | --- |
+| `low` | 96 | beyond 66 yards — the far sideline |
+| `medium` | 156 | 50–66 — midfield |
+| `hero` | 252 | inside 50 — the near sideline, where the camera is |
+
+The thresholds are calibrated against where the camera actually sits, which is
+the only part that is easy to get wrong: it is thirty yards up and forty-six
+across, so the closest a player ever comes is about 37 yards. Round numbers
+picked by eye — 26 and 52 — leave the entire field outside the near band, and
+every player draws at one tier forever while the code reads as though three were
+in use.
+
+Tier selection lives with the actor, never the choreographer: the choreographer
+does not know a camera exists, and must not, or the layout would depend on where
+someone was looking and a replay would stop reproducing.
 
 ```bash
 pnpm demo:render   # simulate a game headlessly, then watch it

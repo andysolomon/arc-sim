@@ -96,12 +96,24 @@ describe("layering", () => {
   });
 
   it("keeps Three.js out of the choreographer too", () => {
-    // Only `scene.ts` may import it — that is what makes the interesting half
-    // of the renderer testable in Node, as this very file demonstrates.
+    /*
+     * Only the drawing files may import it. Everything else under `render/` is
+     * plain numbers, which is what makes the interesting half of the renderer
+     * testable in Node — as this very file demonstrates.
+     *
+     * An allowlist rather than "only scene.ts": the rule is about which layer a
+     * file belongs to, not how many files the graphics layer is allowed to be.
+     */
+    const DRAWS = ["scene.ts", "rig.ts"];
+    const offenders: string[] = [];
     for (const file of walk(join(__dirname, ".."))) {
-      if (file.endsWith("scene.ts")) continue;
-      expect(readFileSync(file, "utf8")).not.toMatch(/from\s+"three"/);
+      // Tests are not shipped — `tsconfig.build.json` excludes them — and a
+      // test for the drawing layer has to import what it is testing.
+      if (file.includes("__tests__")) continue;
+      if (DRAWS.some((name) => file.endsWith(name))) continue;
+      if (/from\s+"three"/.test(readFileSync(file, "utf8"))) offenders.push(file);
     }
+    expect(offenders).toEqual([]);
   });
 });
 
