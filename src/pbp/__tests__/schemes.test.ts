@@ -58,6 +58,48 @@ describe("schemeModifiers", () => {
     expect(most.rate).toBeGreaterThan(1.2);
   });
 
+  it("gives no defense a free lunch", () => {
+    /*
+     * A scheme that is at least as good as another on every axis at once is not
+     * a choice — it is the answer, and the rest of the catalog is decoration.
+     *
+     * The 46 was exactly that until it was measured: `blitz` and `runFit` are
+     * both pure upside, and its coverage read +0.2, so it beat `balanced`, the
+     * 4-3 and the 3-4 on sacks, explosives, interceptions, opponent accuracy
+     * and run defense simultaneously. Every scheme has to pay for something.
+     */
+    const defenses = ["balanced", "four_three", "three_four", "four_two_five", "forty_six"];
+    // The defense wants the first two large and the last three small.
+    const axes = (m: SchemeModifiers) => [
+      m.sackRate,
+      m.interceptionRate,
+      -m.explosiveRate,
+      -m.passAccuracy,
+      -m.rushYards,
+    ];
+
+    const offenders: string[] = [];
+    for (const a of defenses) {
+      for (const b of defenses) {
+        if (a === b) continue;
+        const x = axes(schemeModifiers(undefined, scheme({ defense: a })));
+        const y = axes(schemeModifiers(undefined, scheme({ defense: b })));
+        if (x.every((v, i) => v >= y[i]) && x.some((v, i) => v > y[i])) {
+          offenders.push(`${a} dominates ${b}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("leaves the 46 exposed behind the blitz", () => {
+    // Its own blurb promises famine alongside the feast. The famine is coverage.
+    const fortySix = schemeModifiers(undefined, scheme({ defense: "forty_six" }));
+    expect(fortySix.sackRate).toBeGreaterThan(1.2);
+    expect(fortySix.explosiveRate).toBeGreaterThan(1);
+    expect(fortySix.interceptionRate).toBeLessThan(1);
+  });
+
   it("pays for coverage with the run, and the run with coverage", () => {
     /*
      * The genuine trade in the catalog: the 4-2-5 takes away the deep ball with

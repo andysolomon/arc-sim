@@ -174,7 +174,22 @@ export const DEFENSE_SCHEMES: Readonly<
     id: "forty_six",
     label: "46",
     blurb: "Crowds the line and brings everyone. Feast or famine.",
-    tendencies: { blitz: 0.8, coverage: 0.2, runFit: 0.5 },
+    /*
+     * Coverage is the famine, and it has to be negative for the blurb to be
+     * true. The 46 brings everyone and leaves its secondary in man with no help
+     * behind it — that exposure is the price of the pressure.
+     *
+     * It read +0.2 until it was measured, which made this scheme at least as
+     * good as `balanced`, `four_three` and `three_four` on every axis at once:
+     * more sacks, fewer explosives allowed, more interceptions, worse opponent
+     * accuracy and fewer rush yards. A dominant strategy is not a choice, and
+     * with `blitz` and `runFit` both pure upside, only coverage was left to pay
+     * for them. Even 0 was not enough.
+     *
+     * -0.4 mirrors the 4-2-5's +0.4 deliberately: the two ends of one axis, one
+     * buying coverage with the box and the other the reverse.
+     */
+    tendencies: { blitz: 0.8, coverage: -0.4, runFit: 0.5 },
   },
 });
 

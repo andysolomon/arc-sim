@@ -293,6 +293,41 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 7. `timeline` on/off produces the same game; it only adds `events` / `preSnap`
 8. Under `goalLineYards`, a non-scoring carry never ends past the 99 — and at
    goal-to-go, never gains the first down it did not score on
+9. No scheme dominates another: every scheme is beaten by some other scheme on
+   some axis, so the catalog is a set of choices rather than a ranking
+
+## No free lunch in the scheme catalog
+
+A scheme that is at least as good as another on every axis at once is not a
+choice — it is the answer, and the rest of the catalog is decoration.
+
+The 46 was exactly that. `blitz` and `runFit` are both pure upside, and its
+coverage read **+0.2**, so it beat `balanced`, the 4-3 and the 3-4 on sacks,
+explosives allowed, interceptions, opponent accuracy and run defense
+simultaneously. In simulation it conceded fewer points than the 4-3 against
+*every* offense in the catalog, by up to 2.54 points a game. Nothing punished
+it, which is the opposite of what its own blurb promises.
+
+Coverage is the famine, so it has to be negative: the 46 brings everyone and
+leaves its secondary in man with no help. At **-0.4** — the deliberate mirror of
+the 4-2-5's +0.4 — the matchup table reads the way the blurb does:
+
+| the 46 faces | vs the 4-3 |
+| --- | --- |
+| Flexbone, Wing-T, Pro Style, Spread | better by 0.05–0.73 |
+| **Air Raid** | **worse by 1.27** |
+
+Feast against the run, famine against four verticals. Across all five defenses
+the spread from best to worst is 1.34 points per game, so no scheme is broken —
+they are simply different bets.
+
+`schemes.test.ts` pins the general property, not the one value: it compares
+every defense against every other on all five axes and fails naming any pair
+where one dominates.
+
+Catalog values are read only under the `schemes` gate, so this changes nothing
+for a league that has not opted in, and the v1 golden fixture is untouched. It
+does change results for a league already running the 46.
 
 ## The v1 golden fixture
 
