@@ -18,6 +18,8 @@ import {
   simulateGameLog,
   seedFor,
   sumTeamStatGroup,
+  logModels,
+  normalizeGameLog,
   type DerivedPlayerStatLine,
   type PbpGameLog,
   type PbpPlay,
@@ -66,6 +68,7 @@ function game(label: string): PbpGameLog {
       schemes: true,
       goalLineYards: true,
       goalLineConversion: true,
+      returnStats: true,
     },
   });
 }
@@ -165,19 +168,87 @@ describe("deriveStatLines reconciles with the log", () => {
   });
 
   it("counts one kick return per kick returned", () => {
-    /*
-     * Counts only, deliberately. `prYards` is NOT asserted here because it is
-     * not derivable from the log: the engine folds the punt return into the net
-     * (`net = gross - rand()*8`) and never records it, so the reducer's
-     * `net * 0.25` is a fabricated number roughly 2.5x the return that was
-     * actually simulated. Pinning it would cement the invention as correct.
-     */
     for (const log of LOGS) {
       const lines = deriveStatLines(log);
       const of = (type: string) => counted(log).filter((p) => p.playType === type).length;
       expect(total(lines, "returns", "krCount")).toBe(of("kickoff"));
       expect(total(lines, "returns", "prCount")).toBe(of("punt"));
     }
+  });
+
+  it("credits the punt return the engine actually recorded", () => {
+    /*
+     * The reason `returnStats` exists. Without it the reducer reconstructs a
+     * return from the punt's LENGTH — `net * 0.25` — which corresponds to
+     * nothing the engine rolled and runs about 2.5x high. With it the number in
+     * the box score is the number in the log, and this asserts exactly that
+     * rather than re-deriving it a third way.
+     */
+    for (const log of LOGS) {
+      const punts = counted(log).filter((p) => p.playType === "punt");
+      expect(punts.length).toBeGreaterThan(0);
+      for (const punt of punts) expect(typeof punt.returnYards).toBe("number");
+
+      const recorded = punts.reduce((sum, p) => sum + (p.returnYards ?? 0), 0);
+      expect(total(deriveStatLines(log), "returns", "prYards")).toBe(recorded);
+    }
+  });
+
+  it("records the return the engine rolled, not a share of the punt", () => {
+    /*
+     * Consistency is not correctness, and asserting only "the box score matches
+     * the log" lets the engine write down anything at all — a mutation that
+     * stored `net * 0.25` in `returnYards` passed every other test here.
+     *
+     * So pin it to the model instead. The engine deducts `round(rand() * 8)`
+     * from the gross, then clamps the net to [25, 55]. A return above 8 is
+     * therefore only reachable when the ceiling bit and the punt was recorded
+     * at exactly 55 — any other long return means the number came from
+     * somewhere other than the roll.
+     */
+    let punts = 0;
+    let returned = 0;
+    for (const log of LOGS) {
+      for (const punt of counted(log).filter((p) => p.playType === "punt")) {
+        const back = punt.returnYards!;
+        expect(back).toBeGreaterThanOrEqual(0);
+        expect(back).toBeLessThanOrEqual(punt.yardsGained);
+        if (back > 8) expect(punt.yardsGained).toBe(55);
+        punts++;
+        returned += back;
+      }
+    }
+    // And in aggregate it has to look like a mean-4 roll rather than a share of
+    // a forty-yard punt, which would land near 10.
+    expect(punts).toBeGreaterThan(50);
+    expect(returned / punts).toBeLessThan(7);
+  });
+
+  it("falls back to the old reconstruction on a log that lacks the gate", () => {
+    /*
+     * An existing league's box scores must not shift because the engine learned
+     * to record something. The reconstruction is wrong, but it is what those
+     * logs were scored with, and `logModels` is how a UI tells them apart.
+     */
+    const legacy = simulateGameLog({
+      home: team("home", 76),
+      away: team("away", 64),
+      seed: seedFor("pbp", "derive", "legacy"),
+      features: { scoringV2: true, penalties: true, situational: true },
+    });
+    const punts = counted(legacy).filter((p) => p.playType === "punt");
+    expect(punts.length).toBeGreaterThan(0);
+    for (const punt of punts) expect(punt.returnYards).toBeUndefined();
+
+    const reconstructed = punts.reduce(
+      (sum, p) => sum + Math.max(0, Math.round(p.yardsGained * 0.25)),
+      0,
+    );
+    expect(total(deriveStatLines(legacy), "returns", "prYards")).toBe(reconstructed);
+    // `logModels` reads a NORMALIZED log — the shape a consumer stores and
+    // reloads — which is the path a UI actually takes to ask this question.
+    expect(logModels(normalizeGameLog(legacy), "returnStats")).toBe(false);
+    expect(logModels(normalizeGameLog(LOGS[0]), "returnStats")).toBe(true);
   });
 
   it("never credits a longest gain nobody actually had", () => {

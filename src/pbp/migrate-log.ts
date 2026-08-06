@@ -104,6 +104,9 @@ const MECHANIC_GATE = {
   // Without it, rushing and passing touchdown totals reflect two different
   // rules, so the split between them is an artifact rather than a result.
   goalLineConversion: "goalLineConversion",
+  // Without it a punt's return yardage in the box score is reconstructed from
+  // the punt's length, not read from the return — about 2.5x what was simulated.
+  returnStats: "returnStats",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

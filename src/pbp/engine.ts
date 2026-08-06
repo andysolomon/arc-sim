@@ -892,6 +892,18 @@ function doPunt(state: GameState): void {
   );
   const net = clamp(gross - Math.round(state.rand() * 8), 25, 55);
   /*
+   * What the returner actually brought it back, as the recorded net implies.
+   *
+   * Derived from `gross - net` rather than from the raw deduction above,
+   * because the clamp is part of the answer: when it bites, the return the
+   * drive was built on is not the one that was rolled, and crediting the roll
+   * would put a number in the box score that contradicts the field position.
+   *
+   * Consumes no draw — the roll already happened — which is what lets this sit
+   * behind a gate without touching v1's sequence.
+   */
+  const returned = Math.max(0, gross - net);
+  /*
    * Where the receiving team starts (v2 widens the floor).
    *
    * v1 clamped this to the 15, which meant a team could never be pinned deep —
@@ -921,6 +933,7 @@ function doPunt(state: GameState): void {
       participant(punter, off.teamId, "kicker"),
       participant(returner, def.teamId, "returner"),
     ],
+    ...(state.features.returnStats ? { returnYards: returned } : {}),
   };
   recordPlay(state, play);
   tickFixedClock(state, 7, 7, true);
@@ -1817,6 +1830,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       timeline: input.features?.timeline === true,
       goalLineYards: input.features?.goalLineYards === true,
       goalLineConversion: input.features?.goalLineConversion === true,
+      returnStats: input.features?.returnStats === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

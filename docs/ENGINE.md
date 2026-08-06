@@ -92,6 +92,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `timeline` | Per-play event timelines + pre-snap scoreboard (no outcome change) |
 | `goalLineYards` | A carry stopped at the goal line is credited to the 99, not past it |
 | `goalLineConversion` | One rule decides whether a run *or* a pass that reached the goal line scored |
+| `returnStats` | Punt returns record the yardage they actually gained |
 
 ## Module map
 
@@ -192,6 +193,30 @@ The gate implies `goalLineYards` — a play stopped short must be credited to th
 roll v1 already spent) and one new draw on a completion, which is why it changes
 the sequence and has to be opt-in. Verified inert when off across 1,250 games in
 five gate configurations: zero divergence.
+
+## Punt returns (`returnStats` gate)
+
+The engine folds a punt return into the net — `net = clamp(gross - roll, 25, 55)`
+— and v1 never wrote the return down. `deriveStatLines` needed a number anyway,
+so it reconstructed one as `net * 0.25`.
+
+That number corresponds to nothing. Measured over 124 punts it credited a mean
+**10.2 return yards against a simulated ~4**, and it was computed from the
+punt's length rather than from the return at all — a statistic invented from a
+final figure, which is the one thing this engine exists not to do.
+
+Under the gate the play records `returnYards = gross - net`, derived from the
+recorded net rather than the raw roll, because the clamp is part of the answer:
+when it bites, the return the drive was built on is not the one that was rolled.
+The reducer then reads it. Same 30 games: **mean 3.6, and the box-score total
+equals the engine's total exactly.**
+
+With the gate off the reconstruction stands, so an existing league's box scores
+do not shift underneath it, and `logModels(log, "returnStats")` is how a UI
+tells a real number from the legacy one. Costs no random draw — the roll already
+happened; this only writes down what it produced. Verified inert across 1,250
+games in five gate configurations: zero divergence in the logs **and** zero in
+the derived stats.
 
 ## Stat derivation
 

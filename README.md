@@ -57,6 +57,7 @@ const log = simulateGameLog({
     timeline: true, // per-play event timelines, for a renderer
     goalLineYards: true, // a carry stopped at the goal line stops at the 99
     goalLineConversion: true, // runs and passes score by the same rule
+    returnStats: true, // punt returns record what they actually gained
   },
 });
 

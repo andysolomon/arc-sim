@@ -105,7 +105,19 @@ export function applyPlay(
       if (returner) {
         const line = getLine(map, returner.playerId);
         line.returns.prCount += 1;
-        line.returns.prYards += Math.max(0, Math.round(play.yardsGained * 0.25));
+        /*
+         * Read the return when the engine wrote it down; reconstruct only when
+         * it did not.
+         *
+         * The fallback is kept for logs simulated without the `returnStats`
+         * gate, and it is wrong — `net * 0.25` is computed from the punt's
+         * length rather than from the return, and credits about 2.5x what was
+         * simulated. It stays so an existing league's box scores do not change
+         * under it, not because it is defensible. `logModels(log, "returnStats")`
+         * is how a UI tells the two apart.
+         */
+        line.returns.prYards +=
+          play.returnYards ?? Math.max(0, Math.round(play.yardsGained * 0.25));
         if (play.isScoring) line.returns.prTd += 1;
       }
       break;

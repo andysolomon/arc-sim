@@ -490,4 +490,23 @@ export interface PbpFeatureGates {
    * to be opt-in.
    */
   goalLineConversion?: boolean;
+  /**
+   * Record what a returner actually brought a punt back, instead of leaving the
+   * box score to guess.
+   *
+   * The engine folds the return into the punt's net (`net = gross - roll`) and
+   * v1 never wrote the return down, so `deriveStatLines` reconstructed one as
+   * `net * 0.25`. That number corresponds to nothing: measured over 124 punts
+   * it credited a mean 10.2 return yards against a simulated ~4, computed from
+   * the punt's length rather than from the return at all — a statistic invented
+   * from a final number, which is the exact thing this engine exists not to do.
+   *
+   * With the gate on, `PbpPlay.returnYards` carries `gross - net`, and the
+   * reducer reads it. With it off, the reconstruction stands, so an existing
+   * league's box scores do not silently change under it.
+   *
+   * Costs no random draw: the roll already happened, and this only writes down
+   * what it produced.
+   */
+  returnStats?: boolean;
 }
