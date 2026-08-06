@@ -890,6 +890,11 @@ function doPunt(state: GameState): void {
     (38 + state.rand() * 12 - matchupEdge(state) * 10) *
       state.weatherMods.kickDistance,
   );
+  if (state.features.puntReturns) {
+    doPuntWithReturn(state, off, def, punter, returner, gross);
+    return;
+  }
+
   const net = clamp(gross - Math.round(state.rand() * 8), 25, 55);
   /*
    * What the returner actually brought it back, as the recorded net implies.
@@ -940,6 +945,136 @@ function doPunt(state: GameState): void {
   endDrive(state, "punt");
   flipPossession(state);
   startDrive(state, offenseTeamId(state), newField);
+}
+
+/*
+ * ── Punt returns (`puntReturns` gate) ─────────────────────────────────────
+ *
+ * v1 gave every punt the same treatment: subtract 0–8 yards and spot the ball.
+ * No fair catch, no touchback, no punt downed at the 3, and no return that ever
+ * broke — which removes one of the few plays in the sport that turns a game in
+ * six seconds, and makes a punt the most predictable snap on the field.
+ *
+ * What follows keeps the punt itself alone and models what happens after it
+ * lands, because that is where the variance actually lives.
+ */
+
+/** Fair catch, or the coverage team getting there first. */
+const FAIR_CATCH_RATE = 0.24;
+const DOWNED_RATE = 0.1;
+/** Inside this line the coverage team usually downs it rather than risk a TD. */
+const PIN_ZONE = 10;
+const PIN_DOWNED_RATE = 0.55;
+/**
+ * A return that breaks containment goes the distance.
+ *
+ * About 1% of returns, which lands near one punt-return touchdown per 185
+ * punts — roughly the real rate. Modelled as its own branch rather than as the
+ * tail of the yardage curve: a return either gets bottled up in traffic or it
+ * gets past the last man, and stretching one distribution across both produces
+ * a steady drizzle of 60-yard returns that die at the 8.
+ */
+const BREAKAWAY_RATE = 0.01;
+
+/**
+ * Ordinary return yardage: mostly short, occasionally worth watching.
+ *
+ * Skewed rather than flat, so most returns die in traffic and a few get to the
+ * second level — a uniform roll makes every return look like every other one.
+ *
+ * The `1 +` floor matters more than it looks. Without it the curve rounds a
+ * quarter of its mass to zero, which is not a short return but a different
+ * event entirely: a man who fielded it and was hit immediately reads in the
+ * data as a fair catch, and both the return rate and the average return come
+ * out wrong. A fielded punt gains at least a yard.
+ */
+function returnDistance(state: GameState, cap: number): number {
+  return Math.min(cap, Math.round(1 + Math.pow(state.rand(), 2.8) * 30));
+}
+
+function doPuntWithReturn(
+  state: GameState,
+  off: TeamSimProfile,
+  def: TeamSimProfile,
+  punter: PlayerSimProfile,
+  returner: PlayerSimProfile,
+  gross: number,
+): void {
+  const participants: PbpParticipant[] = [
+    participant(punter, off.teamId, "kicker"),
+    participant(returner, def.teamId, "returner"),
+  ];
+
+  /*
+   * Where the ball comes down, in the RECEIVING team's frame — their own yard
+   * line. Everything after the kick is easier to reason about from that side,
+   * because that is the team the ball now belongs to.
+   */
+  const catchSpot = 100 - (state.fieldPosition + gross);
+  const touchback = catchSpot <= 0;
+
+  let returned = 0;
+  if (!touchback) {
+    const roll = state.rand();
+    if (catchSpot <= PIN_ZONE) {
+      // Pinned deep. Fielding it is the risk; most of these are let go or
+      // downed, and the few that come out do not come out far.
+      if (roll >= PIN_DOWNED_RATE) returned = returnDistance(state, catchSpot + 25);
+    } else if (roll >= FAIR_CATCH_RATE + DOWNED_RATE) {
+      returned = state.rand() < BREAKAWAY_RATE
+        ? 100 - catchSpot
+        : returnDistance(state, 100 - catchSpot);
+    }
+  }
+
+  const startSpot = touchback ? 20 : catchSpot + returned;
+  const isReturnTd = startSpot >= 100;
+
+  const play: PbpPlay = {
+    playId: state.playId,
+    driveId: state.driveId,
+    quarter: state.quarter,
+    clockSeconds: state.clockSeconds,
+    offenseTeamId: off.teamId,
+    defenseTeamId: def.teamId,
+    playType: "punt",
+    down: state.down,
+    distance: state.distance,
+    fieldPosition: state.fieldPosition,
+    // Still the net, so every existing reader keeps working: how far the punt
+    // moved the ball, after the return took some of it back.
+    yardsGained: touchback
+      ? 100 - state.fieldPosition - 20
+      : gross - returned,
+    returnYards: returned,
+    isScoring: false,
+    pointsScored: 0,
+    isTurnover: true,
+    participants,
+  };
+
+  if (isReturnTd) {
+    /*
+     * Six points to the receiving team, and no extra point — the same
+     * simplification the pick-six path already makes, kept identical rather
+     * than improved here so the two defensive-scoring paths agree.
+     */
+    play.isReturnTd = true;
+    play.defensivePoints = 6;
+    awardDefensivePoints(state, 6);
+    recordPlay(state, play);
+    tickFixedClock(state, 7, 7, true);
+    endDrive(state, "punt");
+    // The team that just scored kicks off to the team that punted.
+    doKickoff(state, state.possession === "home" ? "away" : "home");
+    return;
+  }
+
+  recordPlay(state, play);
+  tickFixedClock(state, 7, 7, true);
+  endDrive(state, "punt");
+  flipPossession(state);
+  startDrive(state, offenseTeamId(state), clamp(startSpot, 1, 99));
 }
 
 /**
@@ -1830,7 +1965,15 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       timeline: input.features?.timeline === true,
       goalLineYards: input.features?.goalLineYards === true,
       goalLineConversion: input.features?.goalLineConversion === true,
-      returnStats: input.features?.returnStats === true,
+      /*
+       * `puntReturns` implies `returnStats`, and the implication is resolved
+       * here rather than left to the reader. Its punts record a real return, so
+       * a log that reported otherwise would tell a UI to distrust a number that
+       * is in fact the good one.
+       */
+      returnStats:
+        input.features?.returnStats === true || input.features?.puntReturns === true,
+      puntReturns: input.features?.puntReturns === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

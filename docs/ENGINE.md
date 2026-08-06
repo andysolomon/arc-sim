@@ -93,6 +93,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `goalLineYards` | A carry stopped at the goal line is credited to the 99, not past it |
 | `goalLineConversion` | One rule decides whether a run *or* a pass that reached the goal line scored |
 | `returnStats` | Punt returns record the yardage they actually gained |
+| `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
 
 ## Module map
 
@@ -217,6 +218,42 @@ tells a real number from the legacy one. Costs no random draw — the roll alrea
 happened; this only writes down what it produced. Verified inert across 1,250
 games in five gate configurations: zero divergence in the logs **and** zero in
 the derived stats.
+
+## What happens after the punt lands (`puntReturns` gate)
+
+`returnStats` made the punt return honest. It was still boring: v1 subtracted
+0–8 yards from every punt and spotted the ball, so a punt was the most
+predictable snap on the field — never fair caught, never downed at the 3, and
+never taken back. This models the part where the variance lives and leaves the
+kick itself alone.
+
+| over 400 games | v1 | `puntReturns` | real football |
+| --- | --- | --- | --- |
+| returned | 94% | **54%** | ~55% |
+| mean return | 4.2 | **9.5** | 8–9 |
+| median / p90 | 4 / 7 | **6 / 25** | skewed |
+| longest | 8 | **85** | house calls happen |
+| return TDs | none possible | **1 per ~200 punts** | ~1 per 150–200 |
+
+Two shape decisions worth keeping:
+
+**The breakaway is its own branch, not the tail of the yardage curve.** A return
+either gets bottled up in traffic or it gets past the last man. Stretching one
+distribution across both produces a steady drizzle of sixty-yard returns that
+die at the 8, which is not a thing that happens.
+
+**A fielded punt gains at least a yard.** The skew curve rounded a quarter of
+its mass to zero, and a zero-yard return is not a short return — it is a fair
+catch. That one omission dragged the return rate down to 38% and pushed the
+average return up to 14, because the shortest returns were being counted as
+non-returns. The `1 +` floor fixed both numbers at once.
+
+A return touchdown pays the receiving team through `defensivePoints`, the same
+path as a pick-six, including that path's existing simplification: defensive
+scores are worth six and attempt no extra point.
+
+Verified inert when off across 1,250 games in five gate configurations — zero
+divergence in the logs and zero in the derived stats.
 
 ## Stat derivation
 

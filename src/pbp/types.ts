@@ -509,4 +509,17 @@ export interface PbpFeatureGates {
    * what it produced.
    */
   returnStats?: boolean;
+  /**
+   * What happens to a punt after it lands: fair catches, touchbacks, punts
+   * downed inside the 10, and returns that occasionally break.
+   *
+   * v1 treated every punt identically — subtract 0–8 yards and spot the ball —
+   * so a punt was the most predictable snap in the game and the receiving team
+   * could neither be pinned at its own 3 nor take one back. This models the
+   * part where the variance actually lives, and leaves the kick itself alone.
+   *
+   * Implies `returnStats`: the return is written down, because under this gate
+   * there is a real return to write.
+   */
+  puntReturns?: boolean;
 }

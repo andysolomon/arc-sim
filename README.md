@@ -58,6 +58,7 @@ const log = simulateGameLog({
     goalLineYards: true, // a carry stopped at the goal line stops at the 99
     goalLineConversion: true, // runs and passes score by the same rule
     returnStats: true, // punt returns record what they actually gained
+    puntReturns: true, // fair catches, touchbacks, and returns that break
   },
 });
 

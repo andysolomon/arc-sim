@@ -199,9 +199,17 @@ const checks: Check[] = [
        * Invariant 2: the score is the sum of the scoring plays, never invented.
        * Points reach a team two ways — the offense scoring, and the defense
        * being awarded a safety or a return touchdown — so both ledgers count.
+       *
+       * Penalty-negated plays are excluded, and leaving them in is the trap:
+       * a touchdown wiped by holding stays in the log still marked
+       * `isScoring` with its six points, because the drive chart has to be able
+       * to show what the flag erased. The scoreboard never counted it. This
+       * check passed only because the gates enabled here rarely produce one.
        */
       const scored = (teamId: string) =>
-        plays.reduce((sum: number, p: any) => {
+        plays
+          .filter((p: any) => !p.penalty?.negatesPlay)
+          .reduce((sum: number, p: any) => {
           const offense = p.isScoring && p.offenseTeamId === teamId ? p.pointsScored : 0;
           const defense = p.defenseTeamId === teamId ? (p.defensivePoints ?? 0) : 0;
           return sum + offense + defense;

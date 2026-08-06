@@ -107,6 +107,9 @@ const MECHANIC_GATE = {
   // Without it a punt's return yardage in the box score is reconstructed from
   // the punt's length, not read from the return — about 2.5x what was simulated.
   returnStats: "returnStats",
+  // Without it every punt is subtract-0-to-8-and-spot-it: no fair catch, no
+  // touchback, no punt downed at the 3, and no return that ever broke.
+  puntReturns: "puntReturns",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

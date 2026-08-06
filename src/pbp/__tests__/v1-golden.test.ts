@@ -94,6 +94,7 @@ describe("v1 golden logs", () => {
       "goalLineYards",
       "goalLineConversion",
       "returnStats",
+      "puntReturns",
     ] as const) {
       // Explicitly false is the same claim as absent, and a gate that reads its
       // own flag wrongly would diverge here.
