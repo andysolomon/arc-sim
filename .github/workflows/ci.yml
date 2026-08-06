@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run it on demand. Needed more often than it looks: a commit whose run was
+  # cancelled by the concurrency rule below, or one GitHub never dispatched
+  # during an Actions incident, otherwise has no way to be checked short of
+  # pushing an empty commit to provoke one.
+  workflow_dispatch:
 
 # A second push to the same branch makes the first run's answer irrelevant.
 concurrency:
