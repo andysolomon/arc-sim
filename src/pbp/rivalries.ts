@@ -25,9 +25,20 @@ export const RIVALRY_INTENSITY_DEFAULT = 60;
  *
  * A rivalry is symmetric, so the ids are sorted before joining: "A vs B" and
  * "B vs A" produce the same key and therefore the same row.
+ *
+ * The separator is escaped inside each id first. Without that, `("a|b", "c")`
+ * and `("a", "b|c")` both key to `a|b|c` — two different rivalries collapsing
+ * onto one row in a table that deduplicates on this value, which is the same
+ * silent failure this module exists to prevent, arriving by a different door.
+ *
+ * Escaping is a no-op for any id without a separator in it, so every key this
+ * has ever produced for a well-formed id is unchanged and no stored row needs
+ * migrating.
  */
 export function rivalryPairKey(teamIdA: string, teamIdB: string): string {
-  return [teamIdA, teamIdB].sort().join("|");
+  return sortRivalryTeams(teamIdA, teamIdB)
+    .map((id) => id.replaceAll("|", "%7C"))
+    .join("|");
 }
 
 /** The two ids in the same order `pairKey` puts them. */
