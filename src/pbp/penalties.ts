@@ -169,7 +169,14 @@ export function disciplineMultiplier(meanAwareness: number): number {
 
 export interface RolledPenalty {
   def: PenaltyDef;
-  /** Yards assessed, already signed from the offense's perspective. */
+  /**
+   * Yards assessed against the offending team, as an unsigned magnitude — the
+   * same convention as `PenaltyDef.yards`.
+   *
+   * NOT signed from the offense's perspective, whatever direction the flag
+   * moves the ball. The caller applies the sign from `def.onOffense`, because
+   * only the caller knows which side it is describing.
+   */
   yards: number;
 }
 
