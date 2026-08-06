@@ -2,6 +2,27 @@
   "name": "@arc-sim/core",
   "version": "0.1.0",
   "description": "Deterministic American football play-by-play simulation engine",
+  "keywords": [
+    "football",
+    "american-football",
+    "simulation",
+    "sports",
+    "play-by-play",
+    "deterministic",
+    "game-engine",
+    "seeded-random",
+    "sports-sim",
+    "typescript"
+  ],
+  "homepage": "https://github.com/andysolomon/arc-sim#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andysolomon/arc-sim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/andysolomon/arc-sim/issues"
+  },
+  "author": "Andrew Solomon",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
