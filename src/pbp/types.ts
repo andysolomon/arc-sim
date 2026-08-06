@@ -522,4 +522,18 @@ export interface PbpFeatureGates {
    * there is a real return to write.
    */
   puntReturns?: boolean;
+  /**
+   * A defensive touchdown attempts the extra point that follows it.
+   *
+   * A pick-six or a punt returned to the house was worth exactly six, never
+   * seven, because the try was skipped — `doExtraPoint` reads the kicker and
+   * the scoreboard from whoever has the ball, and after a defensive score that
+   * is the team which just conceded.
+   *
+   * Rare (about one defensive touchdown every twelve games) but wrong in a way
+   * that shows: it produces scorelines football cannot produce, a game ending
+   * 6-0 where it should read 7-0, and a kicker's extra-point total that does
+   * not match his team's touchdowns.
+   */
+  defensivePat?: boolean;
 }

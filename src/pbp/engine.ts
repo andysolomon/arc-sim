@@ -824,6 +824,59 @@ function doExtraPoint(state: GameState): void {
   tickFixedClock(state, 4, 4, true);
 }
 
+/**
+ * The try after a defensive touchdown (`defensivePat` gate).
+ *
+ * A pick-six and a punt returned to the house are worth six and then a kick,
+ * exactly like any other touchdown — but the team that scored is the one
+ * without the ball, so `doExtraPoint` cannot be reused: it reads the kicker,
+ * the matchup edge and the scoreboard from `state.possession`, all of which
+ * point at the team that just conceded.
+ *
+ * Everything here is that same play with the sides swapped. The scoring team is
+ * recorded as this play's offense, because on a try it is, which also keeps the
+ * ordinary "sum `pointsScored` by `offenseTeamId`" reconciliation correct
+ * without teaching it a special case.
+ *
+ * Always a kick. Real football allows a two-point try here and teams almost
+ * never take one, so modelling the choice would add a decision that is wrong
+ * more often than it is right.
+ */
+function doDefensivePat(state: GameState): void {
+  const scoring = defenseTeam(state);
+  const conceding = offenseTeam(state);
+  const kicker = selectPlayer(scoring, "K", state);
+  // `matchupEdge` is signed from the offense's point of view, and the offense
+  // here is the team that just gave up six.
+  const edge = -matchupEdge(state);
+  const made = state.rand() < clamp(0.94 + edge * 0.03, 0.88, 0.99);
+
+  const play: PbpPlay = {
+    playId: state.playId,
+    driveId: state.driveId,
+    quarter: state.quarter,
+    clockSeconds: state.clockSeconds,
+    offenseTeamId: scoring.teamId,
+    defenseTeamId: conceding.teamId,
+    playType: made ? "extra_point" : "extra_point_miss",
+    down: 0,
+    distance: 0,
+    fieldPosition: 98,
+    yardsGained: 0,
+    isScoring: made,
+    pointsScored: made ? 1 : 0,
+    isTurnover: false,
+    participants: [participant(kicker, scoring.teamId, "kicker")],
+  };
+  recordPlay(state, play);
+  if (made) {
+    // The scorer is whoever does NOT have the ball, which is what this awards.
+    awardDefensivePoints(state, 1);
+    if (state.inOvertime) state.gameOver = true;
+  }
+  tickFixedClock(state, 4, 4, true);
+}
+
 function doFieldGoalAttempt(state: GameState): void {
   const off = offenseTeam(state);
   const def = defenseTeam(state);
@@ -1054,16 +1107,12 @@ function doPuntWithReturn(
   };
 
   if (isReturnTd) {
-    /*
-     * Six points to the receiving team, and no extra point — the same
-     * simplification the pick-six path already makes, kept identical rather
-     * than improved here so the two defensive-scoring paths agree.
-     */
     play.isReturnTd = true;
     play.defensivePoints = 6;
     awardDefensivePoints(state, 6);
     recordPlay(state, play);
     tickFixedClock(state, 7, 7, true);
+    if (state.features.defensivePat) doDefensivePat(state);
     endDrive(state, "punt");
     // The team that just scored kicks off to the team that punted.
     doKickoff(state, state.possession === "home" ? "away" : "home");
@@ -1284,6 +1333,7 @@ function doPass(state: GameState): void {
       awardDefensivePoints(state, 6);
       recordPlay(state, play);
       tickPlayClock(state, 20, 10, true);
+      if (state.features.defensivePat) doDefensivePat(state);
       endDrive(state, "turnover");
       // The scoring defense now kicks off to the team that threw it.
       doKickoff(state, state.possession === "home" ? "away" : "home");
@@ -1974,6 +2024,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       returnStats:
         input.features?.returnStats === true || input.features?.puntReturns === true,
       puntReturns: input.features?.puntReturns === true,
+      defensivePat: input.features?.defensivePat === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

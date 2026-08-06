@@ -110,6 +110,9 @@ const MECHANIC_GATE = {
   // Without it every punt is subtract-0-to-8-and-spot-it: no fair catch, no
   // touchback, no punt downed at the 3, and no return that ever broke.
   puntReturns: "puntReturns",
+  // Without it a defensive touchdown is worth exactly six, so a kicker's
+  // extra points will not match his team's touchdowns.
+  defensivePat: "defensivePat",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

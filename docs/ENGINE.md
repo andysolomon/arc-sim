@@ -94,6 +94,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `goalLineConversion` | One rule decides whether a run *or* a pass that reached the goal line scored |
 | `returnStats` | Punt returns record the yardage they actually gained |
 | `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
+| `defensivePat` | A defensive touchdown attempts the extra point that follows it |
 
 ## Module map
 
@@ -254,6 +255,29 @@ scores are worth six and attempt no extra point.
 
 Verified inert when off across 1,250 games in five gate configurations — zero
 divergence in the logs and zero in the derived stats.
+
+## The try after a defensive touchdown (`defensivePat` gate)
+
+A pick-six and a punt returned to the house were worth exactly six, never seven,
+because the extra point was skipped. `doExtraPoint` cannot simply be reused:
+it reads the kicker, the matchup edge and the scoreboard from whoever has the
+ball, and after a defensive score that is the team which just conceded.
+
+Rare — about **one defensive touchdown every twelve games** — but wrong in a way
+that shows. It produces scorelines football cannot produce, a game ending 6–0
+where it should read 7–0, and a kicker whose extra-point total does not match his
+team's touchdowns.
+
+`doDefensivePat` is that same play with the sides swapped. The scoring team is
+recorded as the try's offense, because on a try it is, which also keeps the
+ordinary "sum `pointsScored` by `offenseTeamId`" reconciliation working without
+teaching it a special case. Always a kick: real football allows a two-point try
+here and teams almost never take one, so modelling the choice would add a
+decision that is wrong more often than right.
+
+Measured over 400 games: 35 defensive touchdowns, 35 tries, 34 made. The gate
+draws nothing outside that branch — of 400 games, exactly the 34 containing a
+defensive touchdown diverged, and the other 366 were identical play for play.
 
 ## Stat derivation
 

@@ -193,3 +193,79 @@ describe("the score still adds up", () => {
     expect(Math.abs(withReturns - without)).toBeLessThan(4);
   });
 });
+
+describe("the try after a defensive touchdown", () => {
+  const withPat = (defensivePat: boolean) =>
+    Array.from({ length: 120 }, (_, i) =>
+      simulateGameLog({
+        home: team("home", 72),
+        away: team("away", 68),
+        seed: seedFor("pbp", "pat", String(i)),
+        features: { ...GATES, puntReturns: true, defensivePat },
+      }),
+    );
+
+  /** Every defensive touchdown, paired with whatever play followed it. */
+  function scoresAndNext(logs: PbpGameLog[]) {
+    const out: Array<{ td: PbpPlay; next?: PbpPlay }> = [];
+    for (const log of logs) {
+      const kept = log.drives.flatMap((d) => d.plays).filter((p) => !p.penalty?.negatesPlay);
+      kept.forEach((p, i) => {
+        if ((p.defensivePoints ?? 0) === 6) out.push({ td: p, next: kept[i + 1] });
+      });
+    }
+    return out;
+  }
+
+  it("was worth exactly six before, which football is not", () => {
+    const scores = scoresAndNext(withPat(false));
+    expect(scores.length).toBeGreaterThan(5);
+    for (const { next } of scores) {
+      expect(next?.playType).not.toMatch(/^extra_point/);
+    }
+  });
+
+  it("now kicks the point, like every other touchdown", () => {
+    const scores = scoresAndNext(withPat(true));
+    expect(scores.length).toBeGreaterThan(5);
+    for (const { next } of scores) {
+      expect(next?.playType).toMatch(/^extra_point/);
+    }
+  });
+
+  it("gives the point to the team that scored the touchdown", () => {
+    /*
+     * The easy thing to get backwards. `doExtraPoint` reads everything from
+     * whoever has the ball, and after a defensive score that is the team which
+     * just conceded — so a naive reuse hands the point to the wrong side and
+     * the final score still looks like a football score.
+     */
+    for (const { td, next } of scoresAndNext(withPat(true))) {
+      expect(next!.offenseTeamId).toBe(td.defenseTeamId);
+      expect(next!.participants[0].teamId).toBe(td.defenseTeamId);
+    }
+  });
+
+  it("keeps the scoreboard reconciled with the plays", () => {
+    for (const log of withPat(true)) {
+      const kept = log.drives.flatMap((d) => d.plays).filter((p) => !p.penalty?.negatesPlay);
+      const scored = (teamId: string) =>
+        kept.reduce(
+          (sum, p) =>
+            sum +
+            (p.isScoring && p.offenseTeamId === teamId ? p.pointsScored : 0) +
+            (p.defenseTeamId === teamId ? (p.defensivePoints ?? 0) : 0),
+          0,
+        );
+      expect(scored(log.homeTeamId)).toBe(log.homeScore);
+      expect(scored(log.awayTeamId)).toBe(log.awayScore);
+    }
+  });
+
+  it("makes it nearly always, and misses sometimes", () => {
+    const kicks = scoresAndNext(withPat(true)).map(({ next }) => next!.playType);
+    const made = kicks.filter((t) => t === "extra_point").length;
+    expect(made / kicks.length).toBeGreaterThan(0.85);
+    expect(made / kicks.length).toBeLessThanOrEqual(1);
+  });
+});

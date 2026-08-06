@@ -59,6 +59,7 @@ const log = simulateGameLog({
     goalLineConversion: true, // runs and passes score by the same rule
     returnStats: true, // punt returns record what they actually gained
     puntReturns: true, // fair catches, touchbacks, and returns that break
+    defensivePat: true, // a pick-six is worth 7, not 6
   },
 });
 
