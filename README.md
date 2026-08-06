@@ -21,6 +21,7 @@ import {
   simulateGameLog,
   deriveStatLines,
   seedFor,
+  RECOMMENDED_FEATURES,
   type TeamSimProfile,
 } from "@arc-sim/core";
 
@@ -46,26 +47,33 @@ const log = simulateGameLog({
   home,
   away,
   seed: seedFor("pbp", "demo-game-1"),
-  features: {
-    scoringV2: true,
-    penalties: true,
-    situational: true,
-    balance: true,
-    weather: true,
-    injuries: true,
-    schemes: true,
-    timeline: true, // per-play event timelines, for a renderer
-    goalLineYards: true, // a carry stopped at the goal line stops at the 99
-    goalLineConversion: true, // runs and passes score by the same rule
-    returnStats: true, // punt returns record what they actually gained
-    puntReturns: true, // fair catches, touchbacks, and returns that break
-    defensivePat: true, // a pick-six is worth 7, not 6
-  },
+  features: RECOMMENDED_FEATURES,
 });
 
 console.log(`${log.homeScore} – ${log.awayScore}`);
 console.log(`${log.drives.length} drives`);
 console.log(deriveStatLines(log).slice(0, 3));
+```
+
+## Which features to turn on
+
+Every v2 mechanic is a gate, so a league can decline any of them. That is a
+dozen booleans, and most callers do not want an opinion about all twelve:
+
+| preset | what it is |
+| --- | --- |
+| `V1_FEATURES` | Nothing on — the original engine, byte-for-byte |
+| `RECOMMENDED_FEATURES` | Everything that makes it more like football |
+| `ALL_FEATURES` | The above plus `timeline`, for rendering |
+
+`timeline` is the only thing `RECOMMENDED_FEATURES` leaves out. It changes no
+outcome and adds roughly 70% to a stored log, so it is worth having only when
+something is going to draw the game.
+
+Spread a preset to disagree with one part of it:
+
+```ts
+features: { ...RECOMMENDED_FEATURES, injuries: false }
 ```
 
 ## Rendering a game

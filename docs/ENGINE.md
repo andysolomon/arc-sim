@@ -96,6 +96,24 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
 | `defensivePat` | A defensive touchdown attempts the extra point that follows it |
 
+### Presets
+
+A dozen gates is a question most callers should not have to answer. Three
+ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
+`RECOMMENDED_FEATURES` (everything that makes it more like football), and
+`ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
+with a part of it: `{ ...RECOMMENDED_FEATURES, injuries: false }`.
+
+`timeline` is the sole omission from the recommended set, and for a different
+reason than any other gate: it changes no outcome, it only costs about 70% of
+the log's size, so it is worth carrying only when something will draw the game.
+
+Each preset is written out longhand and typed `Required<PbpFeatureGates>` rather
+than spread from its neighbour. Adding a gate then fails the build until someone
+decides where it belongs in all three — a derived preset would inherit it
+silently, and a caller asking for "recommended" would get a mechanic nobody
+recommended.
+
 ## Module map
 
 | Module | Responsibility |

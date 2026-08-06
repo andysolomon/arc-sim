@@ -46,5 +46,10 @@ export {
   type PbpSimEvent,
   type PbpSimEventType,
 } from "./timeline.js";
+export {
+  V1_FEATURES,
+  RECOMMENDED_FEATURES,
+  ALL_FEATURES,
+} from "./presets.js";
 export { rivalryPairKey, normalizeIntensity } from "./rivalries.js";
 export { homeFieldEdge, isRivalry } from "./crowd.js";

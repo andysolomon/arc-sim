@@ -10,6 +10,7 @@
 import {
   simulateGameLog,
   seedFor,
+  ALL_FEATURES,
   type PbpPlay,
   type PlayerSimProfile,
   type TeamSimProfile,
@@ -57,15 +58,9 @@ const log = simulateGameLog({
   home: roster(HOME.id, HOME.strength),
   away: roster(AWAY.id, AWAY.strength),
   seed: seedFor("pbp", "render-demo", String(Date.now() % 100000)),
-  features: {
-    scoringV2: true,
-    penalties: true,
-    situational: true,
-    balance: true,
-    injuries: true,
-    schemes: true,
-    timeline: true, // the gate that produces `play.events`
-  },
+  // ALL_FEATURES rather than RECOMMENDED: this one is going to be watched, so
+  // it needs `timeline`, the gate that produces `play.events`.
+  features: ALL_FEATURES,
 });
 
 const playsById = new Map<number, PbpPlay>();

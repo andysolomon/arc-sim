@@ -7,6 +7,7 @@ import {
   simulateGameLog,
   deriveStatLines,
   seedFor,
+  ALL_FEATURES,
   type TeamSimProfile,
   type PlayerSimProfile,
 } from "../src/index.js";
@@ -63,15 +64,8 @@ const log = simulateGameLog({
   seed,
   decisive: false,
   flavor: "balanced",
-  features: {
-    scoringV2: true,
-    penalties: true,
-    situational: true,
-    balance: true,
-    injuries: true,
-    schemes: true,
-    timeline: true,
-  },
+  // Everything, including the timeline the renderer reads.
+  features: ALL_FEATURES,
 });
 
 const stats = deriveStatLines(log);
