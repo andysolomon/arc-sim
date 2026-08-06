@@ -242,8 +242,55 @@ export function choreograph(
   // the fact and lands mid-play. Sorting is stable, so simultaneous keys keep
   // the order the choreography stated them in.
   for (const track of tracks) track.keys.sort((a, b) => a.t - b.t);
+  standUp(tracks, duration);
 
   return { playId: play.playId, duration, tracks, captions: c.captions };
+}
+
+/** How long a man takes to push up off the turf and be standing again. */
+const GETUP_SECONDS = 0.34;
+/**
+ * How long he is on his feet before the play ends.
+ *
+ * Not zero, and that is the whole subtlety: `sampleTrack` holds the clip of the
+ * keyframe it is moving FROM, so a pose placed exactly at `duration` is never
+ * the pose in force. Landing "stance" on the last frame would leave every
+ * tackled player frozen halfway up — a worse artefact than lying still, and one
+ * that looks deliberate.
+ */
+const GETUP_HOLD = 0.1;
+/** Below this much dead time after the tackle, he simply stays down. */
+const GETUP_ROOM = 0.55;
+
+/**
+ * Put anyone still face-down back on his feet before the play ends.
+ *
+ * Plays run back-to-back — the next snap begins the frame after this one ends —
+ * so a man left prone at the whistle does not lie there, he teleports upright
+ * into the next formation. The pop is what reads as wrong, and it is worst on
+ * exactly the plays a viewer is watching closely.
+ *
+ * This costs no extra time. The whistle already leaves about a second of tail
+ * in which a tackled player is lying still, so the rise fits in dead air that
+ * was being spent on nothing. Plays whose tackle lands too near the end are
+ * left alone rather than being stretched: a slightly longer play would desync
+ * the animation from the clock the engine actually charged.
+ */
+function standUp(tracks: ActorTrack[], duration: number): void {
+  for (const track of tracks) {
+    const last = track.keys[track.keys.length - 1];
+    if (!last || last.clip !== "tackled") continue;
+    if (duration - last.t < GETUP_ROOM) continue;
+
+    // Same spot he was tackled on — getting up is not a change of position.
+    const upright = duration - GETUP_HOLD;
+    track.keys.push({
+      t: upright - GETUP_SECONDS,
+      pos: { ...last.pos },
+      clip: "getup",
+    });
+    track.keys.push({ t: upright, pos: { ...last.pos }, clip: "stance" });
+  }
 }
 
 /** Every play in a log, in order. */

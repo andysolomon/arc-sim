@@ -293,6 +293,25 @@ export class PlayerRig {
         this.body.position.y = 0.26;
         this.body.position.z = 0.35;
         break;
+      case "getup":
+        /*
+         * Between face-down and upright: on one knee, pitched forward, pushing
+         * off. Standing 1.82 yards tall, prone 0.57, this 1.37 — the middle of
+         * three heights, so the rise reads as a rise.
+         *
+         * The lift is what keeps him out of the turf. Pitching the body forward
+         * swings his head below his hips, and without it he kneels a third of a
+         * yard underground: visible from the end zone, invisible from the
+         * sideline camera the demo happens to use.
+         */
+        this.body.rotation.x = -1.15;
+        this.body.position.y = 0.35;
+        this.body.position.z = 0.16;
+        armL.rotation.x = 0.55;
+        armR.rotation.x = 0.55;
+        legL.rotation.x = 0.7;
+        legR.rotation.x = 0.35;
+        break;
       case "kneel":
         this.body.position.y = -0.5;
         legR.rotation.x = 1.5;

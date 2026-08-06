@@ -289,6 +289,19 @@ than a teleport, and a running gait is possible at all. The gait advances with
 **distance travelled, not time** — which is why players stand still between
 snaps instead of jogging on the spot, and why the legs stay right at 6× speed.
 
+**Tackled players get up.** Plays run back-to-back, so a man left prone at the
+whistle does not lie there — he teleports upright into the next formation, and
+the pop is worst on exactly the plays a viewer is watching closely. The
+choreographer sends him through `tackled → getup → stance` in the second of
+dead air the whistle already leaves, so nothing gets longer: stretching a play
+would desync the animation from the clock the engine charged.
+
+The final `stance` lands slightly *before* `duration`, which is not a detail to
+tidy away. `sampleTrack` holds the clip it is moving **from**, so a pose written
+exactly at `duration` is never the pose in force — put it there and every
+tackled player freezes halfway up, which looks deliberate and is worse than
+leaving them down.
+
 Three tiers, chosen per player per frame by distance from the camera:
 
 | tier | triangles | when |

@@ -289,6 +289,40 @@ describe("choreograph", () => {
     // raised globally, so a real hang in a fast test still fails fast.
   }, 60_000);
 
+  it("puts everyone back on his feet before the play ends", () => {
+    /*
+     * Plays run back-to-back, so a man left prone at the whistle does not lie
+     * there — he teleports upright into the next formation. Sampling at the
+     * final instant rather than reading the last keyframe, because those are
+     * not the same thing: `sampleTrack` holds the clip it is moving FROM, so a
+     * pose written exactly at `duration` is never the pose in force, and a
+     * keyframe-based assertion passes while every player freezes halfway up.
+     */
+    let tackled = 0;
+    for (const animation of animations) {
+      for (const track of animation.tracks) {
+        if (!track.keys.some((key) => key.clip === "tackled")) continue;
+        tackled++;
+        expect(sampleTrack(track, animation.duration).clip).toBe("stance");
+      }
+    }
+    expect(tackled).toBeGreaterThan(20);
+  });
+
+  it("gets up where it went down, without lengthening the play", () => {
+    for (const animation of animations) {
+      for (const track of animation.tracks) {
+        const down = track.keys.filter((key) => key.clip === "tackled").pop();
+        if (!down) continue;
+        // Standing up is not a change of position, and it happens in the dead
+        // air the whistle already left rather than in extra time.
+        const end = sampleTrack(track, animation.duration);
+        expect(Math.hypot(end.pos.x - down.pos.x, end.pos.z - down.pos.z)).toBeLessThan(0.01);
+        for (const key of track.keys) expect(key.t).toBeLessThanOrEqual(animation.duration);
+      }
+    }
+  });
+
   it("captions every play", () => {
     for (const animation of animations) {
       expect(animation.captions.length).toBeGreaterThan(0);

@@ -36,6 +36,8 @@ export type ActorClip =
   | "kick"
   | "tackle"
   | "tackled"
+  /** Pushing up off the turf, between being tackled and standing again. */
+  | "getup"
   | "celebrate"
   | "kneel";
 

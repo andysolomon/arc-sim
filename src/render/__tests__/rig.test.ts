@@ -25,6 +25,7 @@ const CLIPS: ActorClip[] = [
   "kick",
   "tackle",
   "tackled",
+  "getup",
   "celebrate",
   "kneel",
 ];
@@ -116,6 +117,23 @@ describe("poses", () => {
         Object.values(rig.limbs).some((limb) => limb.rotation.x !== 0);
       expect(moved, `${clip} has no pose`).toBe(true);
     }
+    rig.dispose();
+  });
+
+  it("rises through getup, rather than popping upright", () => {
+    // The middle of three poses: lower than standing, higher than prone. If it
+    // matched either neighbour the transition would still be a pop.
+    const rig = new PlayerRig(COLORS, "medium");
+    const heightIn = (clip: ActorClip) => {
+      rig.pose(clip, 0);
+      rig.group.updateMatrixWorld(true);
+      return new THREE.Box3().setFromObject(rig.group).max.y;
+    };
+    const prone = heightIn("tackled");
+    const rising = heightIn("getup");
+    const standing = heightIn("stance");
+    expect(rising).toBeGreaterThan(prone);
+    expect(rising).toBeLessThan(standing);
     rig.dispose();
   });
 
