@@ -47,6 +47,55 @@ function box(w: number, h: number, d: number): THREE.BoxGeometry {
 export function disposeRigGeometries(): void {
   for (const geometry of geometryCache.values()) geometry.dispose();
   geometryCache.clear();
+  for (const texture of numberCache.values()) texture?.dispose();
+  numberCache.clear();
+}
+
+/**
+ * Number plates, cached by what is drawn on them.
+ *
+ * Two per player and twenty-two players, but only a couple of dozen distinct
+ * (number, colourway) pairs in a game — and a canvas draw per plate per play
+ * would be the most expensive thing in the frame by a wide margin.
+ */
+const numberCache = new Map<string, THREE.CanvasTexture | null>();
+
+function numberTexture(
+  value: number,
+  colors: RigColors,
+): THREE.CanvasTexture | null {
+  const key = `${value}:${colors.primary}:${colors.secondary}`;
+  const cached = numberCache.get(key);
+  if (cached !== undefined) return cached;
+
+  // Node has no canvas, and the rig is otherwise testable there — so the
+  // plates simply stay blank rather than the whole rig refusing to build.
+  if (typeof document === "undefined") {
+    numberCache.set(key, null);
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 80;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    numberCache.set(key, null);
+    return null;
+  }
+  const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+  ctx.fillStyle = hex(colors.primary);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = hex(colors.secondary);
+  ctx.font = "bold 56px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(value), canvas.width / 2, canvas.height / 2 + 3);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  numberCache.set(key, texture);
+  return texture;
 }
 
 type Part = {
@@ -54,7 +103,7 @@ type Part = {
   size: [number, number, number];
   /** Offset from its pivot. */
   at: [number, number, number];
-  paint: "primary" | "secondary";
+  paint: "primary" | "secondary" | "number";
   /** Which pivot it hangs from. Absent means the body itself. */
   limb?: Limb;
   /** Lowest tier that draws it. */
@@ -100,8 +149,8 @@ const PARTS: readonly Part[] = [
   { size: [0.19, 0.16, 0.21], at: [0, -0.62, 0], paint: "secondary", limb: "armL", from: "hero" },
   { size: [0.19, 0.16, 0.21], at: [0, -0.62, 0], paint: "secondary", limb: "armR", from: "hero" },
   { size: [0.5, 0.12, 0.44], at: [0, 0.9, 0], paint: "secondary", from: "hero" },
-  { size: [0.24, 0.3, 0.02], at: [0, 1.2, 0.22], paint: "secondary", from: "hero" },
-  { size: [0.24, 0.3, 0.02], at: [0, 1.2, -0.22], paint: "secondary", from: "hero" },
+  { size: [0.3, 0.36, 0.02], at: [0, 1.2, 0.22], paint: "number", from: "hero" },
+  { size: [0.3, 0.36, 0.02], at: [0, 1.2, -0.22], paint: "number", from: "hero" },
   { size: [0.22, 0.14, 0.26], at: [0, -0.34, 0.02], paint: "primary", limb: "legL", from: "hero" },
   { size: [0.22, 0.14, 0.26], at: [0, -0.34, 0.02], paint: "primary", limb: "legR", from: "hero" },
 ];
@@ -126,13 +175,19 @@ export class PlayerRig {
 
   private readonly primary: THREE.MeshLambertMaterial;
   private readonly secondary: THREE.MeshLambertMaterial;
+  /** The number plates. Its own material because the texture is per player. */
+  private readonly plate: THREE.MeshLambertMaterial;
   private readonly shadow: THREE.Mesh;
   private tier: RigTier;
+  private colors: RigColors;
+  private number = 0;
 
   constructor(colors: RigColors, tier: RigTier = "medium") {
     this.tier = tier;
+    this.colors = colors;
     this.primary = new THREE.MeshLambertMaterial({ color: colors.primary });
     this.secondary = new THREE.MeshLambertMaterial({ color: colors.secondary });
+    this.plate = new THREE.MeshLambertMaterial({ color: colors.primary });
 
     this.limbs = {
       armL: new THREE.Group(),
@@ -176,7 +231,11 @@ export class PlayerRig {
       if (TIER_RANK[part.from] > TIER_RANK[this.tier]) continue;
       const mesh = new THREE.Mesh(
         box(...part.size),
-        part.paint === "primary" ? this.primary : this.secondary,
+        part.paint === "primary"
+          ? this.primary
+          : part.paint === "number"
+            ? this.plate
+            : this.secondary,
       );
       mesh.position.set(...part.at);
       (part.limb ? this.limbs[part.limb] : this.body).add(mesh);
@@ -207,8 +266,34 @@ export class PlayerRig {
   }
 
   setColors(colors: RigColors): void {
+    this.colors = colors;
     this.primary.color.setHex(colors.primary);
     this.secondary.color.setHex(colors.secondary);
+    // The plate carries a texture drawn IN these colours, so it has to be
+    // redrawn rather than merely re-tinted.
+    this.applyNumber();
+  }
+
+  /**
+   * The number on his back and chest.
+   *
+   * Only visible at the hero tier, which is the only tier that draws the
+   * plates — a number legible from forty yards would be a different kind of
+   * wrong from one that is absent.
+   */
+  setNumber(value: number): void {
+    if (value === this.number) return;
+    this.number = value;
+    this.applyNumber();
+  }
+
+  private applyNumber(): void {
+    const texture = this.number > 0 ? numberTexture(this.number, this.colors) : null;
+    this.plate.map = texture;
+    // Without a texture the plate is just jersey — which is what it was before
+    // numbers existed, and what it stays in Node where there is no canvas.
+    this.plate.color.setHex(texture ? 0xffffff : this.colors.primary);
+    this.plate.needsUpdate = true;
   }
 
   /**
@@ -338,6 +423,8 @@ export class PlayerRig {
   dispose(): void {
     this.primary.dispose();
     this.secondary.dispose();
+    // The plate texture is shared through the cache, so only the material dies.
+    this.plate.dispose();
     this.shadow.geometry.dispose();
     (this.shadow.material as THREE.Material).dispose();
   }

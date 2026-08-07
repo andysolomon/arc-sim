@@ -433,6 +433,7 @@ render/scene.ts → pixels            the only Three file
 | `render/animation.ts` | Track/keyframe types + sampling |
 | `render/describe.ts` | Play → English (also a text play-by-play feed) |
 | `render/rig.ts` | The player: box geometry, a pivot skeleton, poses, LOD |
+| `render/jersey.ts` | Slot label → the number he wears (pure, no Three) |
 | `render/scene.ts` | Three.js field, actors, playback, broadcast camera |
 
 **The contract.** Choreography may invent *how*, never *what*. Every position

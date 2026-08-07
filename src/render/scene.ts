@@ -7,6 +7,7 @@ import {
 } from "./animation.js";
 import { END_ZONE_DEPTH, FIELD_LENGTH, FIELD_WIDTH, UPRIGHT_DEPTH } from "./field.js";
 import { PlayerRig, disposeRigGeometries, type RigTier } from "./rig.js";
+import { jerseyNumber } from "./jersey.js";
 
 /*
  * The scene (A8) — with `rig.ts`, one of the two files in this package that
@@ -98,6 +99,18 @@ export class PlayerActor {
 
   setAppearance(appearance: TeamAppearance): void {
     this.rig.setColors(appearance);
+  }
+
+  /**
+   * Which number he wears, from the slot he is filling.
+   *
+   * Keyed off the slot label rather than the player, because the slots persist
+   * and the casting does not: `WR2` is `WR2` all game even as the engine names
+   * different people into it, and a number changing hands mid-drive would read
+   * worse than one that is merely arbitrary.
+   */
+  setSlot(label: string): void {
+    this.rig.setNumber(jerseyNumber(label));
   }
 
   /**
@@ -326,6 +339,7 @@ export class FootballScene {
       const actor = this.actors.get(track.actorId);
       if (!actor) continue;
       actor.setAppearance(track.teamId === this.homeTeamId ? this.home : this.away);
+      actor.setSlot(track.label);
     }
   }
 

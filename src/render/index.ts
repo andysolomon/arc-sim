@@ -72,3 +72,5 @@ export {
   type RigColors,
   type RigTier,
 } from "./rig.js";
+
+export { jerseyNumber } from "./jersey.js";
