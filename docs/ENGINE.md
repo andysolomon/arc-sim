@@ -358,12 +358,18 @@ fewer, deeper balls against defenses that cannot cover as long.
 | TD split | 53% rush | 61% rush | 55-65% |
 | combined points | 33 | 31.5 | ~42+ |
 
-Scoring is the one that has not landed. Offenses reach the red zone 2.9 times a
-game and convert 51% of those into touchdowns — the conversion is right, the
-volume is not, because drives stall around the opponent's 40. Pushing the split
-further toward the run makes it worse rather than better: passing is the more
-efficient play here, so a more authentic play mix costs points. That tension is
-unresolved and is the next thing worth working on.
+Scoring closed part of the way and then stopped, which is worth stating
+precisely. Raising the explosive-play rate — high-school football's own answer
+to a stalled drive, and the thing the model was lightest on — took combined
+scoring from 31.0 to 34.3 while leaving every distribution above still in band.
+
+The rest of the gap does not belong to any one broken rule. Third-down
+conversion is 35% against a real 35-40%. Total plays are 136 a game against a
+design note of ~110. Drives start at their own 35, better field position than
+real football. Red-zone conversion is 60%, inside the 55-60% band. Every
+measurable part of the offense is where it should be, and the aggregate is
+still about eight points light — which means closing it further requires taking
+something OUT of band, and that is a trade rather than a fix.
 
 ## Stat derivation
 

@@ -1181,7 +1181,7 @@ function carryYards(
 
   const broke =
     state.rand() <
-    (0.15 + edge * 0.05) * state.weatherMods.explosiveRate * scheme.explosiveRate;
+    (0.19 + edge * 0.05) * state.weatherMods.explosiveRate * scheme.explosiveRate;
   if (broke) {
     return Math.round(
       (9 + Math.pow(state.rand(), BREAK_SKEW) * BREAK_SPAN) * scheme.rushYards,
@@ -1464,7 +1464,7 @@ function doPass(state: GameState): void {
 
   const explosive =
     state.rand() <
-    (state.features.passingGame ? 0.13 : 0.1) * (1 + edge * 0.6) *
+    (state.features.passingGame ? 0.17 : 0.1) * (1 + edge * 0.6) *
       state.weatherMods.explosiveRate *
       scheme.explosiveRate;
   /*
