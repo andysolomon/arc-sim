@@ -55,6 +55,39 @@ console.log(`${log.drives.length} drives`);
 console.log(deriveStatLines(log).slice(0, 3));
 ```
 
+## Reading the box score
+
+The log is the source of truth; `deriveStatLines` reads it back into per-player
+lines. **A stat group is absent rather than zeroed when a player did nothing in
+that phase** — a running back has no `passing` key at all, not a `passing` block
+full of zeros. That is the same honest-absence rule the storage layer follows,
+and it means you always reach through `?.`:
+
+```ts
+for (const { playerId, statLine } of deriveStatLines(log)) {
+  const { passing: p, rushing: r, receiving: c } = statLine;
+  if (p) console.log(`${playerId}: ${p.comp}/${p.att}, ${p.yards} yds, ${p.td} TD`);
+  if (r?.carries) console.log(`${playerId}: ${r.carries} car, ${r.yards} yds`);
+  if (c?.rec) console.log(`${playerId}: ${c.rec} rec, ${c.yards} yds`);
+}
+```
+
+| Group | Fields |
+| --- | --- |
+| `passing` | `comp` `att` `yards` `td` `int` `sacked` |
+| `rushing` | `carries` `yards` `td` `long` |
+| `receiving` | `rec` `yards` `td` `long` `targets` |
+| `defense` | `tacklesSolo` `tacklesAst` `tfl` `sacks` `int` `passDef` `ff` `fr` `defTd` |
+| `returns` | `krCount` `krYards` `krTd` `prCount` `prYards` `prTd` |
+| `kicking` | `fgMade` `fgAtt` `xpMade` `xpAtt` |
+| `punting` | `punts` `yards` `long` |
+| `ballSecurity` | `fumbles` `fumblesLost` |
+
+They are football's names, not guessable synonyms: it is `carries` and not
+`attempts`, `rec` and not `receptions`. Reaching for the wrong one yields
+`undefined` rather than an error, so a box score quietly reads as zeroes — worth
+knowing before you spend an afternoon on it.
+
 ## Which features to turn on
 
 Every v2 mechanic is a gate, so a league can decline any of them. That is a
