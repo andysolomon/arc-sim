@@ -14,6 +14,52 @@ pnpm test          # unit tests
 pnpm type-check
 ```
 
+## From a terminal
+
+No code required to see a game:
+
+```bash
+npx @arc-sim/core --seed week1 --home Ironhawks --away "Voxel City"
+```
+
+```
+  Ironhawks 6 — 21 Voxel City
+  26 drives · 139 plays · seed 2696428524
+
+  Ironhawks
+    home-qb1           9/23   97 yds 0 TD 0 INT
+    home-rb1            19 car   69 yds 0 TD (long 11)
+    home-wr1             5 rec   65 yds 0 TD
+```
+
+| Flag | |
+| --- | --- |
+| `--seed VALUE` | any string or number; the same seed always replays the same game |
+| `--home` / `--away` | team names |
+| `--home-rating` / `--away-rating` | 0–99, default 72 and 68 |
+| `--games N` | simulate N games and print aggregate rates instead of one box score |
+| `--pbp` | play-by-play instead of the box score |
+| `--json` | the raw game log, for piping into `jq` |
+| `--features` | `v1`, `recommended` (default), or `all` |
+
+`--games` answers the other question — not "what happened" but "is this
+right" — by reporting the engine's rates beside the varsity numbers they are
+aiming at:
+
+```bash
+npx @arc-sim/core --games 500
+```
+
+```
+    scrimmage plays       50            50–55
+    carries               31            35–40
+    rushing yards         171           150–180
+    yards per carry       5.5           4.5–5.5
+    completion rate       57%           50–55%
+    rushing share of TDs  62%           55–65%
+    combined points       37.1          ~42
+```
+
 ## Quick start
 
 ```ts

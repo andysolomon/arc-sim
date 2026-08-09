@@ -36,6 +36,9 @@
       "import": "./dist/render/index.js"
     }
   },
+  "bin": {
+    "arc-sim": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "docs",
@@ -51,7 +54,8 @@
     "dist-check": "tsx scripts/dist-check.ts",
     "gen:golden": "tsx scripts/gen-v1-golden.ts",
     "verify": "pnpm type-check && pnpm test && pnpm build && pnpm dist-check",
-    "prepublishOnly": "pnpm verify"
+    "prepublishOnly": "pnpm verify",
+    "sim": "tsx src/cli.ts"
   },
   "packageManager": "pnpm@9.15.4",
   "engines": {
