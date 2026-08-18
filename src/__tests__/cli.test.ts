@@ -118,6 +118,17 @@ describe("refusing bad input", () => {
     expect(err).toContain("v1, recommended, all");
   });
 
+  it("ignores the -- that pnpm forwards", () => {
+    /*
+     * `pnpm run sim -- --games 3` hands the `--` straight through, so
+     * rejecting it breaks the standard way of passing arguments to a package
+     * script — on the very invocation the README documents.
+     */
+    const { code, out } = run("--", "--games", "3");
+    expect(code).toBe(0);
+    expect(out).toContain("3 games");
+  });
+
   it("prints usage on --help and succeeds", () => {
     const { code, out } = run("--help");
     expect(code).toBe(0);

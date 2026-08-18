@@ -103,6 +103,15 @@ function parse(argv: readonly string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     switch (flag) {
+      /*
+       * The POSIX end-of-options marker. Nothing here takes positional
+       * arguments, so there is nothing to separate — but `pnpm run sim --
+       * --games 500` forwards the `--` verbatim, and rejecting it means the
+       * standard way to pass arguments to a package script fails on the
+       * documented invocation.
+       */
+      case "--":
+        break;
       case "--help":
       case "-h":
         args.help = true;
