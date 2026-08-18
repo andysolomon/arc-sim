@@ -225,7 +225,7 @@ export function runoffSeconds(
   if (clockStopped) return 0;
   if (strategy === "hurry_up") return 12;
   if (strategy === "burn") return 38;
-  return 30;
+  return 26;
 }
 
 /**

@@ -330,7 +330,17 @@ describe("preSnap", () => {
         awayTimeouts: play.preSnap!.awayTimeouts,
       });
 
-      if (play.isScoring && play.pointsScored > 0) {
+      /*
+       * A play wiped by a penalty stays in the log exactly as it happened —
+       * `isScoring: true`, points and all — with the flag recording that it
+       * did not count. Anything reconstructing a score has to skip it, and
+       * this accumulator did not: a seed where a touchdown came back for
+       * holding made it run six points ahead of `preSnap`, which was right.
+       *
+       * The third place in this repo to trip over the same footgun, after
+       * `dist-check` and a throwaway validation script.
+       */
+      if (play.isScoring && play.pointsScored > 0 && !play.penalty?.negatesPlay) {
         if (play.offenseTeamId === log.homeTeamId) home += play.pointsScored;
         else away += play.pointsScored;
       }

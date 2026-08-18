@@ -51,13 +51,13 @@ npx @arc-sim/core --games 500
 ```
 
 ```
-    scrimmage plays       50            50–55
-    carries               31            35–40
-    rushing yards         171           150–180
-    yards per carry       5.5           4.5–5.5
-    completion rate       57%           50–55%
-    rushing share of TDs  62%           55–65%
-    combined points       37.1          ~42
+    scrimmage plays       54            50–55
+    carries               36            35–40
+    rushing yards         178           150–180
+    yards per carry       5.0           4.5–5.5
+    completion rate       52%           50–55%
+    rushing share of TDs  60%           55–65%
+    combined points       33.6          ~42
 ```
 
 ## Quick start

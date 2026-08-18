@@ -360,16 +360,41 @@ fewer, deeper balls against defenses that cannot cover as long.
 
 Scoring closed part of the way and then stopped, which is worth stating
 precisely. Raising the explosive-play rate — high-school football's own answer
-to a stalled drive, and the thing the model was lightest on — took combined
-scoring from 31.0 to 34.3 while leaving every distribution above still in band.
+to a stalled drive — took combined scoring from 31.0 to 34.3, and a later pass
+at the run-pass split and the huddle runoff left it near 34.
 
-The rest of the gap does not belong to any one broken rule. Third-down
-conversion is 35% against a real 35-40%. Total plays are 136 a game against a
-design note of ~110. Drives start at their own 35, better field position than
-real football. Red-zone conversion is 60%, inside the 55-60% band. Every
-measurable part of the offense is where it should be, and the aggregate is
-still about eight points light — which means closing it further requires taking
-something OUT of band, and that is a trade rather than a fix.
+Where the offense sits now, over 600 games:
+
+| per team per game | now | varsity |
+| --- | --- | --- |
+| scrimmage plays | 54 | 50–55 |
+| carries | 36 | 35–40 |
+| rushing yards | 178 | 150–180 |
+| yards per carry | 5.0 | 4.5–5.5 |
+| pass attempts | 17 | 15–20 |
+| completion rate | 52% | 50–55% |
+| passing yards | 115 | 110–150 |
+| rushing share of TDs | 60% | 55–65% |
+| sacks | 1.3 | ~2 |
+| interceptions | 0.4 | ~1 |
+| combined points | 33.6 | ~42 |
+
+Getting carries there needed a lever that was not the play-caller. At 50 plays a
+game, 36 carries and 17 attempts do not both fit — the split alone can only
+trade one for the other, which is why lowering the pass rate kept pushing
+passing yardage out of band as fast as it pulled carries in. The binding
+constraint was the huddle: a 30-second runoff between snaps capped a game at
+about 50 plays, and 26 seconds lifts it to 54. Both numbers describe the same
+varsity offense; the shorter one simply leaves room for the play counts the
+sport actually produces.
+
+The remaining gap does not belong to any one rule. Third-down conversion is 35%
+against a real 35–40%. Drives start at their own 35, better field position than
+real football. Red-zone conversion is 60%, inside the 55–60% band. Sacks and
+interceptions run low, and raising them would lower scoring further rather than
+help it. Nine of eleven measures are where they should be and the aggregate is
+still about eight points light, which means closing it requires taking something
+OUT of band — a trade, not a fix.
 
 ## Stat derivation
 

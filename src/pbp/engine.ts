@@ -1151,7 +1151,7 @@ const STUFF_RATE = 0.19;
 /** Of those, roughly half are no gain and half are an actual loss. */
 const STUFF_LOSS_SKEW = 3.6;
 /** The grind: blocked for a few yards, occasionally more. */
-const CARRY_SKEW = 1.55;
+const CARRY_SKEW = 2.2;
 const CARRY_SPAN = 10;
 /** A run that breaks the second level. */
 const BREAK_SKEW = 4.2;
@@ -1427,8 +1427,15 @@ function doPass(state: GameState): void {
    * balance guard, not a law of physics — a sleet game should be allowed to
    * push completion percentage below it.
    */
+  /*
+   * A varsity quarterback completes half his throws, not two thirds. The 0.6
+   * baseline landed at 57% after weather and scheme — a professional figure in
+   * an engine that plays twelve-minute quarters.
+   */
   const completeProb =
-    clamp(0.6 + edge * 0.14, 0.45, 0.8) *
+    (state.features.passingGame
+      ? clamp(0.54 + edge * 0.14, 0.4, 0.74)
+      : clamp(0.6 + edge * 0.14, 0.45, 0.8)) *
     state.weatherMods.passAccuracy *
     scheme.passAccuracy;
   const complete = state.rand() < completeProb;
@@ -1479,7 +1486,7 @@ function doPass(state: GameState): void {
    */
   let yards = explosive
     ? Math.round(15 + state.rand() * 25)
-    : Math.round(4 + state.rand() * (state.features.passingGame ? 12 : 9) + edge * 5);
+    : Math.round(4 + state.rand() * (state.features.passingGame ? 15 : 9) + edge * 5);
   let isScoring = false;
   let points = 0;
   const participants: PbpParticipant[] = [
@@ -1931,7 +1938,7 @@ function runNormalDownPlay(state: GameState, tempo: ClockStrategy): void {
    * to throw; a high-school offense is likely to run it again.
    */
   let passRate = state.features.playCalling
-    ? clamp(0.36 + edge * 0.1 - (state.down === 1 ? 0 : 0.04), 0.2, 0.62)
+    ? clamp(0.31 + edge * 0.1 - (state.down === 1 ? 0 : 0.04), 0.18, 0.58)
     : clamp(0.52 + edge * 0.1 - (state.down === 1 ? 0 : 0.08), 0.38, 0.68);
   /*
    * Scheme moves the split (A6), and it needs a wider band than the baseline
