@@ -1315,9 +1315,26 @@ function doPass(state: GameState): void {
   const receiver = selectPlayer(off, "WR", state, true);
   const edge = matchupEdge(state);
   const scheme = schemeMods(state);
-  const sackProb = clamp(0.07 - edge * 0.03, 0.03, 0.12) * scheme.sackRate;
+  /*
+   * A varsity dropback is more dangerous than a professional one, in both
+   * directions. The 7% sack rate and 2.5% interception rate here are NFL
+   * figures, and they left a game with 1.3 sacks and 0.4 picks a team against
+   * roughly 2 and 1.
+   *
+   * High-school lines hold up less well and high-school quarterbacks throw far
+   * more interceptions — a 6% pick rate would be catastrophic in the pros and
+   * is ordinary on a Friday night. The interception clamp has to open up too:
+   * its old ceiling of 0.04 sat below the rate the sport actually produces, so
+   * raising the baseline alone would have been silently capped.
+   */
+  const sackProb =
+    (state.features.passingGame
+      ? clamp(0.105 - edge * 0.04, 0.05, 0.17)
+      : clamp(0.07 - edge * 0.03, 0.03, 0.12)) * scheme.sackRate;
   const intProb =
-    clamp(0.025 - edge * 0.01, 0.008, 0.04) * scheme.interceptionRate;
+    (state.features.passingGame
+      ? clamp(0.058 - edge * 0.022, 0.02, 0.095)
+      : clamp(0.025 - edge * 0.01, 0.008, 0.04)) * scheme.interceptionRate;
 
   if (state.rand() < sackProb) {
     const sacker = selectDefender(def, state, "sack");
@@ -1431,10 +1448,15 @@ function doPass(state: GameState): void {
    * A varsity quarterback completes half his throws, not two thirds. The 0.6
    * baseline landed at 57% after weather and scheme — a professional figure in
    * an engine that plays twelve-minute quarters.
+   *
+   * This is per-throw accuracy, and it is not the completion percentage: the
+   * roll only happens on a throw that was not intercepted, so raising the pick
+   * rate to a varsity 6% pulls the reported percentage down with it. The
+   * baseline sits above the number it is aiming at for exactly that reason.
    */
   const completeProb =
     (state.features.passingGame
-      ? clamp(0.54 + edge * 0.14, 0.4, 0.74)
+      ? clamp(0.575 + edge * 0.14, 0.43, 0.77)
       : clamp(0.6 + edge * 0.14, 0.45, 0.8)) *
     state.weatherMods.passAccuracy *
     scheme.passAccuracy;

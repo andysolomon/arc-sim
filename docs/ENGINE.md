@@ -369,15 +369,28 @@ Where the offense sits now, over 600 games:
 | --- | --- | --- |
 | scrimmage plays | 54 | 50–55 |
 | carries | 36 | 35–40 |
-| rushing yards | 178 | 150–180 |
-| yards per carry | 5.0 | 4.5–5.5 |
-| pass attempts | 17 | 15–20 |
-| completion rate | 52% | 50–55% |
-| passing yards | 115 | 110–150 |
+| rushing yards | 177 | 150–180 |
+| yards per carry | 4.9 | 4.5–5.5 |
+| pass attempts | 16 | 15–20 |
+| completion rate | 53% | 50–55% |
+| passing yards | 112 | 110–150 |
 | rushing share of TDs | 60% | 55–65% |
-| sacks | 1.3 | ~2 |
-| interceptions | 0.4 | ~1 |
-| combined points | 33.6 | ~42 |
+| sacks | 1.9 | ~2 |
+| interceptions | 1.0 | ~1 |
+| combined points | 34.0 | ~42 |
+
+A varsity dropback is more dangerous than a professional one in both
+directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
+High-school lines hold up less well and high-school quarterbacks throw far more
+interceptions: a 6% pick rate would be catastrophic in the pros and is ordinary
+on a Friday night. The interception clamp had to open up as well, because its
+old ceiling of 0.04 sat below the rate the sport produces and would have
+silently capped the new baseline.
+
+Raising the pick rate lowers the completion PERCENTAGE without touching
+accuracy, because the completion roll only happens on a throw that was not
+intercepted. The per-throw baseline therefore sits above the percentage it aims
+at, and the two were tuned together rather than one at a time.
 
 Getting carries there needed a lever that was not the play-caller. At 50 plays a
 game, 36 carries and 17 attempts do not both fit — the split alone can only
@@ -390,11 +403,15 @@ sport actually produces.
 
 The remaining gap does not belong to any one rule. Third-down conversion is 35%
 against a real 35–40%. Drives start at their own 35, better field position than
-real football. Red-zone conversion is 60%, inside the 55–60% band. Sacks and
-interceptions run low, and raising them would lower scoring further rather than
-help it. Nine of eleven measures are where they should be and the aggregate is
-still about eight points light, which means closing it requires taking something
-OUT of band — a trade, not a fix.
+real football. Red-zone conversion is 60%, inside the 55–60% band. **Ten of the
+eleven measures above are now in band**, and the aggregate is still about eight
+points light — which means closing it requires taking something OUT of band. A
+trade, not a fix.
+
+That the last one is scoring is not a coincidence. Points are the most derived
+quantity here: every play-level distribution feeds it, so it is the measure with
+the least freedom left once the others are pinned. Moving it now means
+un-pinning something that is currently correct.
 
 ## Stat derivation
 
