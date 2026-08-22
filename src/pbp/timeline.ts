@@ -567,20 +567,71 @@ function interceptionEvents(play: PbpPlay, snap: PbpSimEvent): PbpSimEvent[] {
 }
 
 function kickoffEvents(play: PbpPlay): PbpSimEvent[] {
-  const los = play.fieldPosition;
-  const fielded = spotAt(100 - KICKOFF_FIELDED_AT);
-  const endSpot = spotAt(100 - kickReturnSpot(play.yardsGained));
+  const kick: PbpSimEvent = {
+    t: at(SNAP_TO_KICK),
+    type: "kick",
+    playerId: find(play, "kicker")?.playerId,
+    teamId: play.offenseTeamId,
+    spot: spotAt(play.fieldPosition),
+  };
   const landed = at(SNAP_TO_KICK + KICKOFF_HANG);
   const returner = find(play, "returner");
 
+  /*
+   * Under the `kickReturns` gate the play records what actually happened, so
+   * the layout reads it instead of reconstructing it. `returnYards` is absent
+   * on a v1 kickoff and zero on one that was never brought out, and the two
+   * mean different things: absent is "this engine did not model it", zero is
+   * "he took a knee". Both are laid out below, differently.
+   */
+  if (play.returnYards !== undefined) {
+    // Everything is derivable from the recorded net, which is what keeps this
+    // pure and therefore usable on a log stored years ago.
+    const startSpot = 100 - (play.fieldPosition + play.yardsGained);
+    if (play.returnYards === 0) {
+      return [
+        kick,
+        {
+          t: landed,
+          type: "kick_result",
+          teamId: play.defenseTeamId,
+          spot: spotAt(100 - startSpot),
+        },
+      ];
+    }
+    const caught = spotAt(100 - (startSpot - play.returnYards));
+    const endSpot = spotAt(100 - startSpot);
+    return [
+      kick,
+      {
+        t: landed,
+        type: "return_start",
+        playerId: returner?.playerId,
+        teamId: play.defenseTeamId,
+        spot: caught,
+      },
+      play.isReturnTd
+        ? {
+            t: at(landed + carryTime(caught - endSpot)),
+            type: "touchdown",
+            playerId: returner?.playerId,
+            teamId: play.defenseTeamId,
+            spot: 0,
+          }
+        : {
+            t: at(landed + carryTime(caught - endSpot)),
+            type: "tackle",
+            teamId: play.offenseTeamId,
+            spot: endSpot,
+          },
+    ];
+  }
+
+  const fielded = spotAt(100 - KICKOFF_FIELDED_AT);
+  const endSpot = spotAt(100 - kickReturnSpot(play.yardsGained));
+
   return [
-    {
-      t: at(SNAP_TO_KICK),
-      type: "kick",
-      playerId: find(play, "kicker")?.playerId,
-      teamId: play.offenseTeamId,
-      spot: spotAt(los),
-    },
+    kick,
     {
       t: landed,
       type: "return_start",

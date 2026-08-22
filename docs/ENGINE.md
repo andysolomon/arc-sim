@@ -94,6 +94,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `goalLineConversion` | One rule decides whether a run *or* a pass that reached the goal line scored |
 | `returnStats` | Punt returns record the yardage they actually gained |
 | `puntReturns` | Fair catches, touchbacks, punts downed deep, and returns that break |
+| `kickReturns` | Touchbacks, real kickoff return yardage, and returns taken back |
 | `defensivePat` | A defensive touchdown attempts the extra point that follows it |
 | `rushDistribution` | A carry can be stuffed at or behind the line |
 | `playCalling` | Run-pass split matched to high school, not the pros |
@@ -101,7 +102,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 
 ### Presets
 
-A dozen gates is a question most callers should not have to answer. Three
+Seventeen gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -271,8 +272,7 @@ average return up to 14, because the shortest returns were being counted as
 non-returns. The `1 +` floor fixed both numbers at once.
 
 A return touchdown pays the receiving team through `defensivePoints`, the same
-path as a pick-six, including that path's existing simplification: defensive
-scores are worth six and attempt no extra point.
+path as a pick-six — and, under `defensivePat`, kicks the try that follows it.
 
 Verified inert when off across 1,250 games in five gate configurations — zero
 divergence in the logs and zero in the derived stats.
@@ -299,6 +299,85 @@ decision that is wrong more often than right.
 Measured over 400 games: 35 defensive touchdowns, 35 tries, 34 made. The gate
 draws nothing outside that branch — of 400 games, exactly the 34 containing a
 defensive touchdown diverged, and the other 366 were identical play for play.
+
+## The other kick (`kickReturns` gate)
+
+`puntReturns` made the punt a real play. The kickoff was still v1's, and v1
+resolved the whole thing with one roll:
+
+```
+returnYards = round(18 + rand()*22 + edge*8)
+startField  = clamp(returnYards, 15, 40)
+play.yardsGained = returnYards          // ← and this is the returner's stat line
+```
+
+One number, used twice. It was the yard line the receiving team started on
+*and* the yardage credited to the returner, which means a man handed the ball at
+his own 28 and tackled where he stood went into the book for a 28-yard return.
+It is the punt's invented statistic again — a figure read off a final position
+rather than off the thing it names — and it came with three more consequences:
+
+- **No kick ever reached the end zone.** The roll had a floor of 18 and a clamp
+  at the 15, so a touchback was not rare, it was unreachable. Every kickoff in
+  every game was fielded and returned.
+- **`krTd` was dead code.** `doKickoff` wrote `isScoring: false` unconditionally,
+  so the box-score field existed and nothing could ever increment it — the same
+  species of bug as `tfl` before `rushDistribution`.
+- **The most predictable snap in football.** Clamped to a 25-yard window, with
+  no touchback below it and no house call above it.
+
+Under the gate the play is three facts rather than one. How far the kick
+carried, whether it came out of the end zone, and what the return got:
+
+| over 800 games | v1 | `kickReturns` | real varsity |
+| --- | --- | --- | --- |
+| returned | 100% | **86%** | ~85% |
+| touchbacks | **impossible** | 14% | 10-20% |
+| mean return | 29.2 | **21.7** | 18-22 |
+| median / p90 | 29 / 38 | **19 / 37** | skewed |
+| longest | 41 | **99** | house calls happen |
+| return TDs | **impossible** | 1 per 144 returns | ~1 per 100-200 |
+
+Three decisions worth keeping:
+
+**The choice belongs in the end zone, and nowhere else.** A kick that comes down
+in the field of play is returned, because there is nothing else to do with it; a
+kick that reaches the end zone is a decision, and it is the mirror of the punt's
+fair catch — a knee is worth the 20, so *bringing it out* is the aggressive
+option, and it starts him on the goal line rather than where the ball landed.
+Because a touchback is then the only way a kickoff goes un-returned,
+`returnYards === 0` means exactly one thing to every reader.
+
+**A kick return is not a long punt return.** It gets a higher floor and less
+skew, because the plays are not alike: a kick returner catches it running with
+the field in front of him, where a punt returner catches it standing still with
+the coverage on top of him. A ten-yard kick return is a bad one and a ten-yard
+punt return is a good one, and one curve cannot say both.
+
+**Field position does not move.** Mean drive start after a kickoff is 29.0
+against v1's 29.2. That is deliberate and it is pinned by a test: the gate is a
+bookkeeping and variance change, and a league that turns it on to get honest
+box scores must not silently get a different scoring environment with them. The
+eleven calibrated aggregates are unmoved; combined points rise 34.6 → 35.0,
+which is the return touchdowns and nothing else.
+
+`yardsGained` becomes the NET the kick moved the ball — what `yardsGained`
+already means on a punt — and the play carries `returnYards` beside it, so the
+reducer reads the return instead of the spot. Over 800 games the box-score
+kick-return total equals the engine's total exactly. With the gate off both
+readings stay as they were, so an existing league's box scores do not shift
+underneath it, and `logModels(log, "kickReturns")` is how a UI tells the real
+number from the legacy one.
+
+A return taken to the house pays the receiving team through `defensivePoints`
+and kicks its try through `doDefensivePat`, the same paths a punt return
+touchdown already used — reached here from a new direction, because on a
+kickoff the scoring team is the play's *defense* and `state.possession` at that
+moment is neither side reliably. Nobody is named the returner on a touchback,
+so no box score credits a return that was never made.
+
+Verified inert when off across five gate configurations including everything
+else on, and the v1 golden fixture regenerates byte-for-byte.
 
 ## What a carry gains (`rushDistribution` gate)
 
@@ -369,15 +448,15 @@ Where the offense sits now, over 600 games:
 | --- | --- | --- |
 | scrimmage plays | 54 | 50–55 |
 | carries | 36 | 35–40 |
-| rushing yards | 177 | 150–180 |
+| rushing yards | 176 | 150–180 |
 | yards per carry | 4.9 | 4.5–5.5 |
 | pass attempts | 16 | 15–20 |
 | completion rate | 53% | 50–55% |
 | passing yards | 112 | 110–150 |
-| rushing share of TDs | 60% | 55–65% |
-| sacks | 1.9 | ~2 |
-| interceptions | 1.0 | ~1 |
-| combined points | 34.0 | ~42 |
+| rushing share of TDs | 61% | 55–65% |
+| sacks | 1.8 | ~2 |
+| interceptions | 0.9 | ~1 |
+| combined points | 34.3 | ~42 |
 
 A varsity dropback is more dangerous than a professional one in both
 directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
@@ -403,9 +482,11 @@ sport actually produces.
 
 The remaining gap does not belong to any one rule. Third-down conversion is 35%
 against a real 35–40%. Drives start at their own 35, better field position than
-real football. Red-zone conversion is 60%, inside the 55–60% band. **Ten of the
-eleven measures above are now in band**, and the aggregate is still about eight
-points light — which means closing it requires taking something OUT of band. A
+real football — and note that `kickReturns` deliberately did **not** touch that,
+because the kickoff already spots them at the 29 and moving it would have been a
+scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 60%,
+inside the 55–60% band. **Ten of the eleven measures above are now in band**,
+and the aggregate is still about eight points light — which means closing it requires taking something OUT of band. A
 trade, not a fix.
 
 That the last one is scoring is not a coincidence. Points are the most derived
@@ -560,6 +641,9 @@ pnpm demo:render   # simulate a game headlessly, then watch it
    goal-to-go, never gains the first down it did not score on
 9. No scheme dominates another: every scheme is beaten by some other scheme on
    some axis, so the catalog is a set of choices rather than a ranking
+10. Under `kickReturns`, `returnYards === 0` means a touchback and nothing else,
+    nobody is named the returner on one, and the box-score kick-return total
+    equals the sum of what the engine simulated
 
 ## No free lunch in the scheme catalog
 

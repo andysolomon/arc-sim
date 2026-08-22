@@ -135,6 +135,10 @@ const MECHANIC_GATE = {
   // Without it every punt is subtract-0-to-8-and-spot-it: no fair catch, no
   // touchback, no punt downed at the 3, and no return that ever broke.
   puntReturns: "puntReturns",
+  // Without it every kickoff is one roll that serves as both the drive's
+  // starting yard line and the returner's box-score line: no touchbacks, no
+  // return ever taken back, and `krYards` read off the spot rather than the run.
+  kickReturns: "kickReturns",
   // Without it a defensive touchdown is worth exactly six, so a kicker's
   // extra points will not match his team's touchdowns.
   defensivePat: "defensivePat",

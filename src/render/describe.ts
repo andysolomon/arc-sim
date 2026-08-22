@@ -41,11 +41,22 @@ export function describePlay(play: PbpPlay): string {
   const gained = play.yardsGained;
 
   switch (play.playType) {
-    case "kickoff":
-      // `yardsGained` is the raw return roll; where the returner was actually
-      // stopped is that number through the engine's own clamp.
-      // Always its own half — the engine clamps a return to the 15–40.
-      return `Kickoff, returned to the ${kickReturnSpot(gained)}.`;
+    case "kickoff": {
+      /*
+       * Two engines to describe. Under the `kickReturns` gate the play carries
+       * a real return and `yardsGained` is the net; without it `yardsGained` is
+       * v1's single collapsed number and the stop is that number through the
+       * engine's own clamp.
+       */
+      if (play.returnYards === undefined) {
+        return `Kickoff, returned to the ${kickReturnSpot(gained)}.`;
+      }
+      if (play.isReturnTd) return "Kickoff returned all the way — TOUCHDOWN!";
+      // A touchback is the only way the engine leaves a kickoff un-returned.
+      if (play.returnYards === 0) return "Kickoff, touchback.";
+      const startSpot = 100 - (play.fieldPosition + gained);
+      return `Kickoff, returned ${yards(play.returnYards)} to the ${startSpot}.`;
+    }
     case "onside_kick":
       return play.isTurnover
         ? "Onside kick — recovered by the receiving team."

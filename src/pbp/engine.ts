@@ -257,25 +257,40 @@ function effectiveStrength(
   return team.strength + (team.strength - oppStrength) * 0.15 + homeEdge;
 }
 
+/**
+ * The strength differential, signed from `side`'s point of view.
+ *
+ * Named separately from `matchupEdge` because a kickoff has no offense in the
+ * sense the rest of the engine means: `state.possession` at that moment is
+ * whoever had the ball last, which is the kicking team after a score and the
+ * RECEIVING team at the start of a half. v1 read `matchupEdge` there anyway, so
+ * the sign of the return bonus flipped depending on how the kickoff came about
+ * — harmless in v1 only because nobody looked. Anything new asks for the side
+ * it means.
+ */
+function edgeFrom(state: GameState, side: "home" | "away"): number {
+  const us = side === "home" ? state.home : state.away;
+  const them = side === "home" ? state.away : state.home;
+  const usIsHome = side === "home";
+  const usEff = effectiveStrength(
+    us,
+    usIsHome,
+    them.strength,
+    state.strengthWeight,
+    state.homeFieldEdge,
+  );
+  const themEff = effectiveStrength(
+    them,
+    !usIsHome,
+    us.strength,
+    state.strengthWeight,
+    state.homeFieldEdge,
+  );
+  return ((usEff - themEff) / 99) * state.edgeScale;
+}
+
 function matchupEdge(state: GameState): number {
-  const off = offenseTeam(state);
-  const def = defenseTeam(state);
-  const offIsHome = state.possession === "home";
-  const offEff = effectiveStrength(
-    off,
-    offIsHome,
-    def.strength,
-    state.strengthWeight,
-    state.homeFieldEdge,
-  );
-  const defEff = effectiveStrength(
-    def,
-    !offIsHome,
-    off.strength,
-    state.strengthWeight,
-    state.homeFieldEdge,
-  );
-  return ((offEff - defEff) / 99) * state.edgeScale;
+  return edgeFrom(state, state.possession);
 }
 
 /*
@@ -726,6 +741,197 @@ function doOnsideKick(state: GameState, kicking: "home" | "away"): void {
   state.openingKickDone = true;
 }
 
+/*
+ * ── Kickoffs (`kickReturns` gate) ─────────────────────────────────────────
+ *
+ * v1 resolved the whole play with one roll. `18 + rand()*22 + edge*8`, clamped
+ * to the 15-40, became BOTH the yard line the receiving team started on and
+ * the yardage credited to the returner — so every kick was fielded, every one
+ * was returned, nobody was ever pinned at the 6 or handed a touchback, and the
+ * returner's box-score line was read off the drive's starting spot rather than
+ * off anything he did. `isScoring` was written `false` unconditionally, which
+ * made `krTd` unreachable.
+ *
+ * That is `returnStats` and `puntReturns` again, on the other kick. What
+ * follows models the three facts separately: how far the kick carried, whether
+ * it was brought out, and what the return got.
+ */
+
+/** Where a kickoff is spotted, in the kicking team's own frame. */
+const KICKOFF_SPOT = 35;
+/** ...and therefore how far the goal line is from the tee. */
+const KICKOFF_TO_GOAL = 100 - KICKOFF_SPOT;
+/** A kick that reaches the end zone comes out here, as a punt's does. */
+const TOUCHBACK_SPOT = 20;
+
+/**
+ * How far a varsity kickoff carries.
+ *
+ * Uniform, like the punt's gross, and centred so that the goal line is at the
+ * top of the range rather than the middle of it: a high-school leg reaches the
+ * end zone sometimes, not usually, which is exactly why the return is still a
+ * live play at this level and largely a formality in the professional game.
+ */
+const KICKOFF_BASE = 46;
+const KICKOFF_SPAN = 23;
+
+/**
+ * A kick into the end zone that the returner brings out anyway.
+ *
+ * The kickoff's version of the fair-catch decision, and it cuts the opposite
+ * way: a knee is worth the 20, so bringing it out is the aggressive choice and
+ * it starts him on the goal line. Most returners take the 20, which is why the
+ * rate is low — and why the choice only exists in the end zone. A ball that
+ * comes down in the field of play is returned, because there is nothing else
+ * to do with it.
+ */
+const BRING_OUT_RATE = 0.25;
+
+/**
+ * A return that gets past the last man.
+ *
+ * Its own branch rather than the tail of the yardage curve, for the reason the
+ * punt gate gives: a return either gets bottled up or it is gone, and one
+ * distribution stretched across both produces a drizzle of sixty-yard returns
+ * that die at the 8. About one kickoff in 150 returns.
+ */
+const KICK_BREAKAWAY_RATE = 0.007;
+
+/**
+ * Ordinary return yardage.
+ *
+ * Less skewed than a punt return and with a much higher floor, because the
+ * plays are not alike: a kick returner catches it running with the whole field
+ * in front of him, where a punt returner catches it standing still with the
+ * coverage already on top of him. A ten-yard kick return is a bad one; a
+ * ten-yard punt return is a good one.
+ */
+const KICK_RETURN_FLOOR = 9;
+const KICK_RETURN_SKEW = 1.7;
+const KICK_RETURN_SPAN = 33;
+
+function kickReturnDistance(
+  state: GameState,
+  edge: number,
+  cap: number,
+): number {
+  const yards = Math.round(
+    KICK_RETURN_FLOOR +
+      Math.pow(state.rand(), KICK_RETURN_SKEW) * KICK_RETURN_SPAN +
+      edge * 5,
+  );
+  // A fielded kick gains at least a yard: zero is not a short return, it is a
+  // different event, and counting it as a return is what dragged the punt
+  // gate's own numbers out of shape before its floor went in.
+  return Math.min(cap, Math.max(1, yards));
+}
+
+function doKickoffWithReturn(state: GameState, kicking: "home" | "away"): void {
+  const receivingSide = kicking === "home" ? "away" : "home";
+  const kickingTeam = kicking === "home" ? state.home : state.away;
+  const receiving = kicking === "home" ? state.away : state.home;
+  const kicker = selectPlayer(kickingTeam, "K", state);
+  const returner = selectPlayer(receiving, "RB", state, true);
+
+  const carry = Math.round(
+    (KICKOFF_BASE + state.rand() * KICKOFF_SPAN + edgeFrom(state, kicking) * 8) *
+      state.weatherMods.kickDistance,
+  );
+  /*
+   * Where it comes down, in the RECEIVING team's frame — their own yard line.
+   * Zero or less is the end zone. Everything after the kick reads more easily
+   * from that side, because the ball is theirs now.
+   */
+  const catchSpot = KICKOFF_TO_GOAL - carry;
+
+  /*
+   * In the end zone he chooses; in the field of play he is returning it. A
+   * touchback is therefore the only way a kickoff goes un-returned, which is
+   * what lets `returnYards === 0` mean exactly one thing to every reader.
+   */
+  const inEndZone = catchSpot <= 0;
+  const returning = !inEndZone || state.rand() < BRING_OUT_RATE;
+
+  let returnYards = 0;
+  let startSpot = TOUCHBACK_SPOT;
+  if (returning) {
+    // Out of the end zone he starts on the goal line, not at the spot the ball
+    // came down — those yards are behind him and nobody is credited with them.
+    const from = Math.max(0, catchSpot);
+    returnYards =
+      state.rand() < KICK_BREAKAWAY_RATE
+        ? 100 - from
+        : kickReturnDistance(state, edgeFrom(state, receivingSide), 100 - from);
+    startSpot = from + returnYards;
+  }
+  const isReturnTd = startSpot >= 100;
+
+  startDrive(state, kickingTeam.teamId, KICKOFF_SPOT);
+  const play: PbpPlay = {
+    playId: state.playId,
+    driveId: state.driveId,
+    quarter: state.quarter,
+    clockSeconds: state.clockSeconds,
+    offenseTeamId: kickingTeam.teamId,
+    defenseTeamId: receiving.teamId,
+    playType: "kickoff",
+    down: 0,
+    distance: 0,
+    fieldPosition: KICKOFF_SPOT,
+    /*
+     * The NET the kick moved the ball, which is what `yardsGained` already
+     * means on a punt — v1's number here was the raw return roll, a quantity
+     * that answered no question anyone asks of a kickoff. Negative on a return
+     * taken to the house, because the ball did finish behind where it started.
+     */
+    yardsGained: 100 - startSpot - KICKOFF_SPOT,
+    returnYards,
+    isScoring: false,
+    pointsScored: 0,
+    isTurnover: true,
+    /*
+     * Nobody is the returner on a touchback. v1 named one on every kickoff,
+     * which is how a box score came to credit returns that were never made —
+     * honest absence is the rule everywhere else in this log and there is no
+     * reason for the kickoff to be the exception.
+     */
+    participants: [
+      participant(kicker, kickingTeam.teamId, "kicker"),
+      ...(returnYards > 0
+        ? [participant(returner, receiving.teamId, "returner")]
+        : []),
+    ],
+  };
+
+  if (isReturnTd) {
+    play.isReturnTd = true;
+    play.defensivePoints = 6;
+    recordPlay(state, play);
+    /*
+     * The returning team is this play's DEFENSE, so the scoreboard, the try and
+     * the kickoff back all have to read from a possession that names the
+     * KICKING team. Set after `recordPlay`, which stamps the pre-snap score.
+     */
+    state.possession = kicking;
+    awardDefensivePoints(state, 6);
+    tickFixedClock(state, 6, 6, true);
+    if (state.features.defensivePat) doDefensivePat(state);
+    endDrive(state, "turnover");
+    state.openingKickDone = true;
+    // The team that just scored kicks off to the team that just kicked to it.
+    if (!state.gameOver) doKickoff(state, receivingSide);
+    return;
+  }
+
+  recordPlay(state, play);
+  tickFixedClock(state, 6, 6, true);
+  endDrive(state, "turnover");
+
+  state.possession = receivingSide;
+  startDrive(state, receiving.teamId, clamp(startSpot, 1, 99));
+  state.openingKickDone = true;
+}
+
 function doKickoff(state: GameState, kicking: "home" | "away"): void {
   if (state.features.situational) {
     const kickingScore =
@@ -745,6 +951,11 @@ function doKickoff(state: GameState, kicking: "home" | "away"): void {
     }
   }
 
+  if (state.features.kickReturns) {
+    doKickoffWithReturn(state, kicking);
+    return;
+  }
+
   const kickingTeam = kicking === "home" ? state.home : state.away;
   const receiving = kicking === "home" ? state.away : state.home;
   const kicker = selectPlayer(kickingTeam, "K", state);
@@ -759,7 +970,7 @@ function doKickoff(state: GameState, kicking: "home" | "away"): void {
    */
   const startField = kickReturnSpot(returnYards);
 
-  startDrive(state, kickingTeam.teamId, 35);
+  startDrive(state, kickingTeam.teamId, KICKOFF_SPOT);
   const play: PbpPlay = {
     playId: state.playId,
     driveId: state.driveId,
@@ -770,7 +981,7 @@ function doKickoff(state: GameState, kicking: "home" | "away"): void {
     playType: "kickoff",
     down: 0,
     distance: 0,
-    fieldPosition: 35,
+    fieldPosition: KICKOFF_SPOT,
     yardsGained: returnYards,
     isScoring: false,
     pointsScored: 0,
@@ -2143,6 +2354,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       returnStats:
         input.features?.returnStats === true || input.features?.puntReturns === true,
       puntReturns: input.features?.puntReturns === true,
+      kickReturns: input.features?.kickReturns === true,
       defensivePat: input.features?.defensivePat === true,
       rushDistribution: input.features?.rushDistribution === true,
       playCalling: input.features?.playCalling === true,

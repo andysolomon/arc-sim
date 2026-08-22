@@ -95,6 +95,7 @@ describe("v1 golden logs", () => {
       "goalLineConversion",
       "returnStats",
       "puntReturns",
+      "kickReturns",
       "defensivePat",
       "rushDistribution",
       "playCalling",

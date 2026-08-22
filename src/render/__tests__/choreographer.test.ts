@@ -52,6 +52,13 @@ function game(label: string, timeline = true): PbpGameLog {
       balance: true,
       injuries: true,
       schemes: true,
+      /*
+       * On, because the kickoff is the one play whose layout has two shapes:
+       * a touchback that stages no return at all, and a return taken back to
+       * the kicking team's own goal line. Neither exists in a v1 log, so
+       * without this gate the sweep below never draws either of them.
+       */
+      kickReturns: true,
       timeline,
     },
   });

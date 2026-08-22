@@ -523,6 +523,33 @@ export interface PbpFeatureGates {
    */
   puntReturns?: boolean;
   /**
+   * What happens to a kickoff after it comes down: touchbacks, kicks taken a
+   * knee on, real return yardage, and the occasional one taken all the way.
+   *
+   * v1 collapsed the whole play into one number. `doKickoff` rolled
+   * `18 + rand()*22 + edge*8`, clamped it to the 15-40, and used the result as
+   * BOTH the yard line the drive started on and the yardage credited to the
+   * returner — so every kickoff was fielded, every one was returned, the
+   * returner was credited with running from his own goal line whatever the
+   * kick actually did, and `krTd` was unreachable code because the play was
+   * written `isScoring: false` unconditionally.
+   *
+   * That is the punt bug twice over: a statistic read off a final figure
+   * rather than off the thing it names, and a mechanic with no variance in it.
+   * This gate is to the kickoff what `returnStats` and `puntReturns` together
+   * were to the punt — it models the kick, where it comes down, and what the
+   * returner did with it as three separate facts, and writes the return down.
+   *
+   * Under it a kickoff carries `returnYards` (0 means it was never returned,
+   * the same convention the punt gate uses) and `yardsGained` becomes the NET
+   * the kick moved the ball, which is what `yardsGained` already means on a
+   * punt. With the gate off both readings stay exactly as they were, so an
+   * existing league's box scores do not shift underneath it, and
+   * `logModels(log, "kickReturns")` is how a UI tells the real return from the
+   * legacy one.
+   */
+  kickReturns?: boolean;
+  /**
    * A defensive touchdown attempts the extra point that follows it.
    *
    * A pick-six or a punt returned to the house was worth exactly six, never

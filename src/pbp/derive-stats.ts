@@ -87,8 +87,22 @@ export function applyPlay(
       if (returner) {
         const line = getLine(map, returner.playerId);
         line.returns.krCount += 1;
-        line.returns.krYards += play.yardsGained;
-        if (play.isScoring) line.returns.krTd += 1;
+        /*
+         * What he actually brought it back, when the engine wrote it down.
+         *
+         * Under the `kickReturns` gate `returnYards` is the return; without it
+         * `yardsGained` is v1's single collapsed number, which is the yard line
+         * the drive started on wearing a returner's name. The reconstruction
+         * stands when the gate is off so an existing league's box scores do not
+         * move underneath it — `logModels(log, "kickReturns")` tells them apart.
+         */
+        line.returns.krYards += play.returnYards ?? play.yardsGained;
+        /*
+         * A kick return touchdown is the RECEIVING team scoring on a play its
+         * opponent ran, so it lands in `defensivePoints` and not in `isScoring`
+         * — which is why reading `isScoring` here credited nobody, ever.
+         */
+        if (play.isReturnTd) line.returns.krTd += 1;
       }
       void kicker;
       break;
