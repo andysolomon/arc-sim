@@ -149,6 +149,9 @@ const MECHANIC_GATE = {
   playCalling: "playCalling",
   // Without it a completion is a pro-style checkdown, not a varsity deep ball.
   passingGame: "passingGame",
+  // Without it a kicker's rating is read by nobody, and every kick goes in at
+  // a professional rate.
+  kickingGame: "kickingGame",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

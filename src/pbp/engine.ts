@@ -833,8 +833,11 @@ function doKickoffWithReturn(state: GameState, kicking: "home" | "away"): void {
   const kicker = selectPlayer(kickingTeam, "K", state);
   const returner = selectPlayer(receiving, "RB", state, true);
 
+  // Under `kickingGame` the leg moves the kick a few yards either way; the
+  // matchup term is left as it was so the gate is additive, not a rewrite.
+  const legYards = state.features.kickingGame ? leg(kicker) * 5 : 0;
   const carry = Math.round(
-    (KICKOFF_BASE + state.rand() * KICKOFF_SPAN + edgeFrom(state, kicking) * 8) *
+    (KICKOFF_BASE + state.rand() * KICKOFF_SPAN + edgeFrom(state, kicking) * 8 + legYards) *
       state.weatherMods.kickDistance,
   );
   /*
@@ -1000,12 +1003,59 @@ function doKickoff(state: GameState, kicking: "home" | "away"): void {
   state.openingKickDone = true;
 }
 
+/*
+ * ── The kicking game (`kickingGame` gate) ─────────────────────────────────
+ *
+ * Every kick below named its kicker as a participant and then read nothing
+ * from him. Under the gate his `overall` is a leg, signed so that the roster's
+ * ordinary kicker is about neutral: a 40 is the worst leg in the league and a
+ * 90 the best, and the rating a dynasty spent a recruiting class on finally
+ * shows up on the scoreboard.
+ */
+const LEG_NEUTRAL = 65;
+const LEG_SCALE = 25;
+
+function leg(kicker: PlayerSimProfile): number {
+  return clamp((kicker.overall - LEG_NEUTRAL) / LEG_SCALE, -1, 1);
+}
+
+/**
+ * How far out a coach will send this kicker, in yards to the goal line.
+ *
+ * A neutral leg is trusted to about 44 yards, the best to 50 and the worst to
+ * the mid-30s — against the flat 52 the chart assumes when it knows nothing.
+ */
+function fieldGoalRangeFor(kicker: PlayerSimProfile): number {
+  return Math.round(27 + leg(kicker) * 7);
+}
+
+/**
+ * A varsity field goal. Steeper than the professional curve and steeper
+ * again past 35 yards, because that is where a high-school leg runs out: a
+ * 20-yarder is routine, a 40-yarder is a coin flip and a 50-yarder is news.
+ */
+function varsityFieldGoalProb(
+  distance: number,
+  kicker: PlayerSimProfile,
+  edge: number,
+): number {
+  const base = 0.92 - (distance - 18) * 0.012 - Math.max(0, distance - 35) * 0.025;
+  return clamp(base + leg(kicker) * 0.1 + edge * 0.04, 0.05, 0.95);
+}
+
+/** A varsity extra point: closer to six in seven than to automatic. */
+function varsityExtraPointProb(kicker: PlayerSimProfile, edge: number): number {
+  return clamp(0.86 + leg(kicker) * 0.06 + edge * 0.02, 0.7, 0.97);
+}
+
 function doExtraPoint(state: GameState): void {
   const off = offenseTeam(state);
   const def = defenseTeam(state);
   const kicker = selectPlayer(off, "K", state);
   const edge = matchupEdge(state);
-  const makeProb = clamp(0.94 + edge * 0.03, 0.88, 0.99);
+  const makeProb = state.features.kickingGame
+    ? varsityExtraPointProb(kicker, edge)
+    : clamp(0.94 + edge * 0.03, 0.88, 0.99);
   const made = state.rand() < makeProb;
   const playType: PbpPlayType = made ? "extra_point" : "extra_point_miss";
 
@@ -1060,7 +1110,11 @@ function doDefensivePat(state: GameState): void {
   // `matchupEdge` is signed from the offense's point of view, and the offense
   // here is the team that just gave up six.
   const edge = -matchupEdge(state);
-  const made = state.rand() < clamp(0.94 + edge * 0.03, 0.88, 0.99);
+  const made =
+    state.rand() <
+    (state.features.kickingGame
+      ? varsityExtraPointProb(kicker, edge)
+      : clamp(0.94 + edge * 0.03, 0.88, 0.99));
 
   const play: PbpPlay = {
     playId: state.playId,
@@ -1100,11 +1154,9 @@ function doFieldGoalAttempt(state: GameState): void {
    * penalty. Dividing by a neutral 1 is exact, so v1 is untouched.
    */
   const effectiveDist = dist / state.weatherMods.kickDistance;
-  const makeProb = clamp(
-    0.92 - (effectiveDist - 30) * 0.02 + edge * 0.08,
-    0.35,
-    0.95,
-  );
+  const makeProb = state.features.kickingGame
+    ? varsityFieldGoalProb(effectiveDist, kicker, edge)
+    : clamp(0.92 - (effectiveDist - 30) * 0.02 + edge * 0.08, 0.35, 0.95);
   const made = state.rand() < makeProb;
   const playType: PbpPlayType = made ? "field_goal" : "field_goal_miss";
 
@@ -1150,8 +1202,15 @@ function doPunt(state: GameState): void {
   const def = defenseTeam(state);
   const punter = selectPlayer(off, "P", state);
   const returner = selectPlayer(def, "WR", state, true);
+  /*
+   * A varsity punt travels about 35 yards, not the 44 v1 averaged, and it is
+   * the punter's leg that decides it rather than the matchup. One draw in
+   * either branch, so the sequence is unchanged.
+   */
   const gross = Math.round(
-    (38 + state.rand() * 12 - matchupEdge(state) * 10) *
+    (state.features.kickingGame
+      ? 31 + state.rand() * 11 + leg(punter) * 6
+      : 38 + state.rand() * 12 - matchupEdge(state) * 10) *
       state.weatherMods.kickDistance,
   );
   if (state.features.puntReturns) {
@@ -2307,6 +2366,10 @@ function runScrimmagePlay(state: GameState): void {
       clockSeconds: state.clockSeconds,
       isOvertime: state.inOvertime,
       aggression: coachAggression(offenseTeam(state)),
+      // Selecting the kicker draws nothing, so asking who he is costs nothing.
+      fieldGoalRange: state.features.kickingGame
+        ? fieldGoalRangeFor(selectPlayer(offenseTeam(state), "K", state))
+        : undefined,
     });
     if (call === "field_goal") {
       doFieldGoalAttempt(state);
@@ -2359,6 +2422,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       rushDistribution: input.features?.rushDistribution === true,
       playCalling: input.features?.playCalling === true,
       passingGame: input.features?.passingGame === true,
+      kickingGame: input.features?.kickingGame === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

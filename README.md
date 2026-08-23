@@ -59,7 +59,10 @@ npx @arc-sim/core --games 500
     sacks                 1.8           ~2
     interceptions         0.9           ~1
     rushing share of TDs  61%           55–65%
-    combined points       34.3          ~42
+    field goal rate       67%           55–70%
+    extra point rate      87%           85–90%
+    punt average          33.6          33–37
+    combined points       32.7          ~42
 ```
 
 ## Quick start
@@ -139,7 +142,7 @@ knowing before you spend an afternoon on it.
 ## Which features to turn on
 
 Every v2 mechanic is a gate, so a league can decline any of them. That is
-seventeen booleans, and most callers do not want an opinion about all of them:
+eighteen booleans, and most callers do not want an opinion about all of them:
 
 | preset | what it is |
 | --- | --- |

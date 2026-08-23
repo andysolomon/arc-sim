@@ -38,6 +38,12 @@ export interface FourthDownInput {
   isOvertime: boolean;
   /** 0-100; 50 is neutral. Higher goes for it more often. */
   aggression: number;
+  /**
+   * The longest yards-to-goal this kicker will be sent out for. Absent, the
+   * chart assumes the 35 a 52-yard try implies; the `kickingGame` gate passes
+   * the kicker's own leg.
+   */
+  fieldGoalRange?: number;
 }
 
 /**
@@ -67,11 +73,18 @@ export function secondsLeftInHalf(
   return clockSeconds + Math.max(0, endOfHalfQuarter - quarter) * 720;
 }
 
+/** Yards-to-goal a coach will try from when nothing is known about the leg. */
+export const DEFAULT_FIELD_GOAL_RANGE = 35;
+
 /** A field goal from this spot is at least worth attempting. */
-export function inFieldGoalRange(yardsToGoal: number): boolean {
+export function inFieldGoalRange(
+  yardsToGoal: number,
+  range = DEFAULT_FIELD_GOAL_RANGE,
+): boolean {
   // Attempt distance is the snap distance plus 17 yards of holder and end zone,
-  // so 35 yards to goal is a 52-yard try — the edge of plausible for HS.
-  return yardsToGoal <= 35;
+  // so 35 yards to goal is a 52-yard try — the edge of plausible for HS, and
+  // past it for most high-school kickers, which is what `range` is for.
+  return yardsToGoal <= range;
 }
 
 /**
@@ -108,7 +121,7 @@ export function fourthDownDecision(input: FourthDownInput): FourthDownCall {
     input.clockSeconds,
     input.isOvertime,
   );
-  const kickable = inFieldGoalRange(yardsToGoal);
+  const kickable = inFieldGoalRange(yardsToGoal, input.fieldGoalRange);
 
   /*
    * Desperation. Trailing late, a punt cannot win the game — it can only hand

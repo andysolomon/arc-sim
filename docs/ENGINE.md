@@ -99,10 +99,11 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `rushDistribution` | A carry can be stuffed at or behind the line |
 | `playCalling` | Run-pass split matched to high school, not the pros |
 | `passingGame` | A completion travels a varsity distance, not a pro checkdown |
+| `kickingGame` | The kicker's rating decides the kick, at a varsity rate |
 
 ### Presets
 
-Seventeen gates is a question most callers should not have to answer. Three
+Eighteen gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -379,6 +380,63 @@ so no box score credits a return that was never made.
 Verified inert when off across five gate configurations including everything
 else on, and the v1 golden fixture regenerates byte-for-byte.
 
+## Who kicks the ball (`kickingGame` gate)
+
+Every kick named a kicker or a punter as a participant and then read nothing
+from him. A field goal went in at `0.92 - (distance - 30) * 0.02 + edge * 0.08`,
+an extra point at `0.94 + edge * 0.03`, a punt travelled `38 + rand() * 12`:
+team strength and the matchup all the way down. Measured over 200 games, a
+**40-overall kicker made 78.6%** of his field goals and a **99-overall made
+78.1%**. The rating was decoration — which is a problem for a dynasty that
+spends a recruiting class on one and expects to see the difference.
+
+And the rates it ignored him in favour of were professional ones, in an engine
+whose every other constant is varsity. `situational.ts` calls a 52-yard try
+"the edge of plausible for HS"; the make curve gave that exact kick a 48%
+chance. Over 400 games, home team, neutral 70-overall kicker and 65 punter:
+
+| | v1 | `kickingGame` | real varsity |
+| --- | --- | --- | --- |
+| field goals, under 30 | 90% | **85%** | 85-90% |
+| 30-39 | 80% | **64%** | 60-70% |
+| 40-49 | 66% | **45%** | 35-45% |
+| 50 and longer | 34% of 50 tries | **never tried** | rarely tried |
+| extra points | 94% | **89%** | 85-90% |
+| punt gross | 40.9 | **33.8** | 33-37 |
+| kickoff touchbacks | 16% | 21% | 10-20% |
+
+Under the gate the kicker's `overall` is a **leg**, centred so that an ordinary
+roster's kicker is about neutral — a 40 is the worst leg in the league, a 90
+the best — and the leg decides three things. How far out the coach will send
+him: a neutral leg is trusted to about 44 yards, the best to 50, the worst to
+the mid-30s, against the flat 52 the chart assumed when it knew nothing. How
+often it goes through, on a curve that is steeper than the professional one and
+steeper again past 35 yards, because that is where a high-school leg runs out.
+And, when `kickReturns` is modelling where a kickoff comes down, a few yards of
+carry either way. The punter's `overall` sets his gross the same way. The
+rating now shows up where it should:
+
+| home specialists rated | extra points | longest try | punt gross | touchbacks |
+| --- | --- | --- | --- | --- |
+| 40 | 80% | 37 yards | 27.8 | 1% |
+| 70 / 65 | 89% | 44 | 33.8 | 21% |
+| 95 | 91% | 52 | 39.7 | 32% |
+
+Two things worth saying about the scoring environment. The gate takes **34.1 →
+32.9** combined points, a point and not the eight a 20-point drop in field-goal
+accuracy might suggest, because the shorter punt hands back most of what the
+harder kick takes away — a varsity offense starts closer. And the overall
+field-goal rate reads *higher* than the per-band rates imply (65%, against 73%
+before) because the coach stopped sending the kicker out from where he cannot
+reach, so the attempts got shorter as the kicks got harder. Both are the sport.
+
+The chart learns the leg through an optional `fieldGoalRange` on
+`fourthDownDecision`; absent, it assumes the 35 yards-to-goal it always did,
+so the situational tests are untouched. Every branch replaces a draw the engine
+already spent rather than adding one, so the gate costs nothing extra — but it
+changes every kick's odds, so it is opt-in. Verified inert when off beside
+every other gate, and the v1 golden fixture regenerates byte-for-byte.
+
 ## What a carry gains (`rushDistribution` gate)
 
 v1 drew rushing yardage from `2 + rand()*5 + edge*4`. That expression has a
@@ -454,9 +512,12 @@ Where the offense sits now, over 600 games:
 | completion rate | 53% | 50–55% |
 | passing yards | 112 | 110–150 |
 | rushing share of TDs | 61% | 55–65% |
-| sacks | 1.8 | ~2 |
-| interceptions | 0.9 | ~1 |
-| combined points | 34.3 | ~42 |
+| sacks | 1.9 | ~2 |
+| interceptions | 1.0 | ~1 |
+| field goal rate | 67% | 55–70% |
+| extra point rate | 87% | 85–90% |
+| punt average | 33.6 | 33–37 |
+| combined points | 32.7 | ~42 |
 
 A varsity dropback is more dangerous than a professional one in both
 directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
@@ -485,9 +546,14 @@ against a real 35–40%. Drives start at their own 35, better field position tha
 real football — and note that `kickReturns` deliberately did **not** touch that,
 because the kickoff already spots them at the 29 and moving it would have been a
 scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 60%,
-inside the 55–60% band. **Ten of the eleven measures above are now in band**,
-and the aggregate is still about eight points light — which means closing it requires taking something OUT of band. A
-trade, not a fix.
+inside the 55–60% band. **Thirteen of the fourteen measures above are now in
+band**, and the aggregate is still about nine points light — which means
+closing it requires taking something OUT of band. A trade, not a fix.
+
+`kickingGame` is the instructive case. It made the kicking worse, as the sport's
+is, and cost about a point — so the missing points were never in the kicks.
+Real varsity reaches 42 with *this* kicking, which localizes the shortfall to
+touchdowns: drives that reach the red zone and what happens to them there.
 
 That the last one is scoring is not a coincidence. Points are the most derived
 quantity here: every play-level distribution feeds it, so it is the measure with
@@ -644,6 +710,8 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 10. Under `kickReturns`, `returnYards === 0` means a touchback and nothing else,
     nobody is named the returner on one, and the box-score kick-return total
     equals the sum of what the engine simulated
+11. Under `kickingGame`, a better-rated kicker makes more of his kicks and is
+    sent out from further; with it off, the rating is read by nobody
 
 ## No free lunch in the scheme catalog
 

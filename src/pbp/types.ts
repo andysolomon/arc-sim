@@ -597,4 +597,32 @@ export interface PbpFeatureGates {
    * on an otherwise realistic number of attempts.
    */
   passingGame?: boolean;
+  /**
+   * The kicker kicks the ball, not the team — and he kicks it like a varsity
+   * kicker.
+   *
+   * Every kick in the engine named a kicker or a punter as a participant and
+   * then read nothing from him: a field goal's make probability was
+   * `0.92 - distance*0.02 + matchupEdge`, the extra point's `0.94 + edge`, the
+   * punt's gross `38 + rand()*12`. Team strength all the way down. Measured over
+   * 200 games, a 40-overall kicker made 78.6% of his field goals and a
+   * 99-overall made 78.1% — the rating was decoration, which matters to a
+   * dynasty that recruits and develops one.
+   *
+   * And those were professional numbers in an engine whose every other
+   * constant is varsity. 76% on field goals against a real 50-60%; 54% from
+   * fifty against a real ~20%; 95% on extra points against a real 85-90%; a
+   * 44-yard mean punt against a real ~35. `situational.ts` even calls a
+   * 52-yarder "the edge of plausible for HS" while the make curve gave that
+   * exact kick a 48% chance.
+   *
+   * Under this gate the kicker's `overall` sets his leg, his leg sets both how
+   * far the coach will let him try from and how often it goes through, and the
+   * punter's `overall` sets his gross. A kickoff carries a little further off a
+   * better leg too, when `kickReturns` is modelling where it comes down.
+   *
+   * Replaces draws rather than adding them, so it costs nothing extra — but
+   * it changes every kick's odds, so it has to be opt-in.
+   */
+  kickingGame?: boolean;
 }

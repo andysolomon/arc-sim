@@ -188,7 +188,12 @@ function roster(teamId: string, rating: number): TeamSimProfile {
         playerId: `${teamId}-${position.toLowerCase()}${depth}`,
         position,
         depthRank: depth,
-        overall: Math.max(40, Math.round(rating - i * 0.6 - (depth - 1) * 3)),
+        // Specialists sit last in the list only because they do, so they do
+        // not pay the slope the skill positions earn by listing order.
+        overall:
+          position === "K" || position === "P"
+            ? rating - 5
+            : Math.max(40, Math.round(rating - i * 0.6 - (depth - 1) * 3)),
       };
     }),
   };
@@ -246,6 +251,7 @@ function printPlayByPlay(log: PbpGameLog, args: Args): void {
 function printAggregate(args: Args): void {
   let pts = 0, plays = 0, carries = 0, rushYds = 0, att = 0, comp = 0, passYds = 0;
   let rushTd = 0, passTd = 0, sacks = 0, ints = 0, drives = 0;
+  let fgAtt = 0, fgMade = 0, xpAtt = 0, xpMade = 0, punts = 0, puntYds = 0;
   for (let i = 0; i < args.games; i++) {
     const log = simulateGameLog({
       home: roster("home", args.homeRating),
@@ -263,6 +269,12 @@ function printAggregate(args: Args): void {
         case "pass_incomplete": att++; plays++; break;
         case "interception": att++; ints++; plays++; break;
         case "sack": sacks++; plays++; break;
+        case "field_goal": fgAtt++; fgMade++; break;
+        case "field_goal_miss": fgAtt++; break;
+        case "extra_point": xpAtt++; xpMade++; break;
+        case "extra_point_miss": xpAtt++; break;
+        // Net plus return is the gross: how far the punter actually kicked it.
+        case "punt": punts++; puntYds += play.yardsGained + (play.returnYards ?? 0); break;
       }
     }
   }
@@ -278,6 +290,9 @@ function printAggregate(args: Args): void {
     ["sacks", (sacks / t).toFixed(1), "~2"],
     ["interceptions", (ints / t).toFixed(1), "~1"],
     ["rushing share of TDs", `${((100 * rushTd) / (rushTd + passTd)).toFixed(0)}%`, "55–65%"],
+    ["field goal rate", `${((100 * fgMade) / fgAtt).toFixed(0)}%`, "55–70%"],
+    ["extra point rate", `${((100 * xpMade) / xpAtt).toFixed(0)}%`, "85–90%"],
+    ["punt average", (puntYds / punts).toFixed(1), "33–37"],
     ["combined points", (pts / args.games).toFixed(1), "~42"],
   ];
   if (args.json) {
