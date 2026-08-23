@@ -47,9 +47,22 @@ function team(id: string, strength: number, kicker = 70, punter = 65): TeamSimPr
   };
 }
 
+/*
+ * 1200, not 150.
+ *
+ * Every claim below is about a distribution, and at 150 games two of them
+ * were reading noise. The distance bands slice the home team's field goals
+ * three ways, leaving the 40–50 band on about forty kicks; and the made-rate
+ * gap this gate opens is about five points, which 180 kicks cannot resolve —
+ * across seed-shifted replicas the same measurement came out anywhere from
+ * 2 to 9. Neither bound was wrong; the sample was too small to test it, so
+ * any later gate that shifts the PRNG stream resampled a passing figure into
+ * a failing one that said nothing about kicking. Twelve hundred games cost
+ * about a second, and the thresholds below stay exactly where they were.
+ */
 function games(
   kickingGame: boolean,
-  { kicker = 70, punter = 65, count = 150 } = {},
+  { kicker = 70, punter = 65, count = 1200 } = {},
 ): PbpGameLog[] {
   return Array.from({ length: count }, (_, i) =>
     simulateGameLog({
@@ -59,6 +72,13 @@ function games(
       features: { ...RECOMMENDED_FEATURES, kickingGame },
     }),
   );
+}
+
+/** Every team's plays of these types, flags excluded. */
+function allPlays(logs: PbpGameLog[], ...types: PbpPlay["playType"][]): PbpPlay[] {
+  return logs
+    .flatMap((l) => l.drives.flatMap((d) => d.plays))
+    .filter((p) => types.includes(p.playType) && !p.penalty?.negatesPlay);
 }
 
 /** The home team's plays of these types, flags excluded. */
@@ -86,8 +106,15 @@ describe("a varsity field goal", () => {
   const fg = (logs: PbpGameLog[]) => homePlays(logs, "field_goal", "field_goal_miss");
 
   it("goes in less often than a professional one", () => {
-    const v1 = rate(fg(OFF), "field_goal");
-    const now = rate(fg(ON), "field_goal");
+    /*
+     * Both teams, not just the home one. Every other test here varies the
+     * home kicker's rating and has to read his kicks alone; this one asks
+     * whether the GATE made the kicking worse, and both teams kick under it
+     * with the same 70-rated leg. Pooling doubles the sample for free.
+     */
+    const kicks = (logs: PbpGameLog[]) => allPlays(logs, "field_goal", "field_goal_miss");
+    const v1 = rate(kicks(OFF), "field_goal");
+    const now = rate(kicks(ON), "field_goal");
     expect(v1).toBeGreaterThan(0.7);
     expect(now).toBeLessThan(v1 - 0.04);
     expect(now).toBeGreaterThan(0.5);

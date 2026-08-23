@@ -102,10 +102,11 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `kickingGame` | The kicker's rating decides the kick, at a varsity rate |
 | `redZone` | A play that would have ended deep in the end zone is not stopped at the one |
 | `downAndDistance` | The play-caller reads the distance: short is a run, long is a pass |
+| `quarterBreak` | A quarter ending is not a drive ending: the offense keeps its down |
 
 ### Presets
 
-Eighteen gates is a question most callers should not have to answer. Three
+Twenty-one gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -528,6 +529,70 @@ Three more points, and everything else stays in band — carries and the rushing
 share now sit at the edge of theirs, which is where the next lever would have
 to take something out.
 
+## What a quarter ends (`quarterBreak` gate)
+
+`downAndDistance` was measured against how often a drive reached the red zone,
+which is a statement about drives — so the drive records were worth reading
+before leaning on them again. They were wrong twice a game.
+
+`checkPeriodEnd` closed the drive whenever the clock hit zero, at **every**
+period boundary, and the main loop then opened a fresh one at the same spot
+through `startDrive` — which sets `down = 1` and `distance = 10`. A quarter
+ending is not a change of possession, so over 300 games:
+
+| | flat |
+| --- | --- |
+| drives cut off by the end of Q1 or Q3 | 1.87 per game |
+| of those, resumed by the same team with no kickoff between | all of them |
+| resumed on first and ten | all of them |
+| **first downs nobody earned** | **1.26 per game** |
+| …handed to an offense that had just failed on third down | 63 in 300 games |
+| …handed to an offense that had just failed on **fourth** | 1 in 300 games |
+
+The bookkeeping was wrong in the same breath. One continuous drive was written
+down as two, and both were stamped `end_of_half` — which at the end of the
+first and third quarters is not what happened. That inflated drives per game by
+about 8% and put 555 phantom drives into the population every 300 games, each
+starting at the *previous* drive's field position, which is to say near
+midfield. It is those, and not the kickoff, that the "drives start at their own
+35" note was measuring:
+
+| mean drive start, by what preceded it | flat |
+| --- | --- |
+| kickoff | own 27.9 |
+| punt | own 30.8 |
+| missed field goal | own 23.5 |
+| turnover | own 55.9 |
+| **the end of a quarter** | **own 55.0** |
+
+Under the gate the drive simply stays open across Q1→Q2 and Q3→Q4: down,
+distance, field position and the drive record all carry over. Halftime, the end
+of regulation and every overtime period still end it, because there a kickoff
+follows and the possession really is over — so `end_of_half` again means a half
+ended. There is no resume path and no special case at the boundary; the boundary
+stopped being an event, which is the whole change.
+
+| | flat | `quarterBreak` |
+| --- | --- | --- |
+| free first downs per game | 1.26 | **0** |
+| drives recorded per game | 30.8 | **29.4** |
+| mean drive start | own 36.7 | **own 34.8** |
+| drives reaching the red zone | 36.9% | 37.4% |
+| combined points | 38.6 | 38.5 |
+
+**It does not move the scoreboard**, and that is worth stating carefully rather
+than claiming a win. Removing 1.26 free first downs a game ought to cost
+points; across 1,000-game replicas the change came out −0.68, −0.61, +0.44,
+−0.44 and +0.11 — a sign that will not settle, which is what an effect smaller
+than its own noise looks like. A free first down late in a quarter mostly
+extends a drive that still has a long way to travel. Every varsity aggregate
+stays in band.
+
+Costs no random draw in either position: it is a control-flow branch, not a
+roll. Gated anyway, because it changes outcomes — a drive that used to be
+revived by the clock now has to convert — so the sequence diverges at the first
+quarter that expires with someone in possession.
+
 ## What a carry gains (`rushDistribution` gate)
 
 v1 drew rushing yardage from `2 + rand()*5 + edge*4`. That expression has a
@@ -597,18 +662,18 @@ Where the offense sits now, over 600 games:
 | --- | --- | --- |
 | scrimmage plays | 55 | 50–55 |
 | carries | 35 | 35–40 |
-| rushing yards | 170 | 150–180 |
+| rushing yards | 169 | 150–180 |
 | yards per carry | 4.9 | 4.5–5.5 |
 | pass attempts | 18 | 15–20 |
 | completion rate | 53% | 50–55% |
 | passing yards | 128 | 110–150 |
-| rushing share of TDs | 64% | 55–65% |
+| rushing share of TDs | 63% | 55–65% |
 | sacks | 2.1 | ~2 |
 | interceptions | 1.1 | ~1 |
 | field goal rate | 67% | 55–70% |
 | extra point rate | 86% | 85–90% |
 | punt average | 33.7 | 33–37 |
-| combined points | 38.0 | ~42 |
+| combined points | 37.7 | ~42 |
 
 A varsity dropback is more dangerous than a professional one in both
 directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
@@ -633,10 +698,15 @@ varsity offense; the shorter one simply leaves room for the play counts the
 sport actually produces.
 
 The remaining gap does not belong to any one rule. Third-down conversion is
-38.5% under `downAndDistance`, against a real 35–40%. Drives start at their own 35, better field position than
-real football — and note that `kickReturns` deliberately did **not** touch that,
-because the kickoff already spots them at the 29 and moving it would have been a
-scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 59%
+38.5% under `downAndDistance`, against a real 35–40%. Drives start at their own
+34.8 under `quarterBreak`, still a shade better than real football — and note
+that `kickReturns` deliberately did **not** touch that, because the kickoff
+already spots them at the 29 and moving it would have been a scoring change
+smuggled in behind a bookkeeping fix. What was left of that number above the
+kickoff's turned out not to be field position at all: see the quarter-break
+gate, which took 1.9 phantom drives a game out of the population and moved the
+mean from the 36.7 to the 34.8 without changing where anybody actually started.
+Red-zone conversion is 59%
 under `redZone`, inside the 55–65% band. **Thirteen of the fourteen measures
 above are now in band**, and the aggregate is still about four points light —
 which means closing it requires taking something OUT of band. A trade, not a
@@ -824,6 +894,10 @@ pnpm demo:render   # simulate a game headlessly, then watch it
     line is stopped exactly as often as `goalLineConversion` stopped it
 13. Under `downAndDistance`, a play spends the same draws it did without it —
     the gate changes what is called, never how much randomness a snap consumes
+14. Under `quarterBreak`, no drive ends because a quarter did: `end_of_half`
+    appears only at halftime and at the end of an overtime period, the offense
+    keeps its down and distance across Q1→Q2 and Q3→Q4, and no snap is ever
+    handed a first down it did not earn
 
 ## No free lunch in the scheme catalog
 

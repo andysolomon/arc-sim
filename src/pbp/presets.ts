@@ -3,11 +3,11 @@ import type { PbpFeatureGates } from "./types.js";
 /*
  * Ready-made gate sets.
  *
- * There are twenty gates now, every one of them individually justified and
+ * There are twenty-one gates now, every one of them individually justified and
  * collectively a question nobody can answer from the type alone: which do I
  * turn on? A gate exists so a league can decline a mechanic, not so every
  * caller has to have an opinion about all of them — and a README that has to
- * enumerate twenty booleans before it can show a realistic game is evidence
+ * enumerate twenty-one booleans before it can show a realistic game is evidence
  * the default was missing rather than obvious.
  *
  * Each preset is typed `Required<PbpFeatureGates>` on purpose. Listing every
@@ -51,6 +51,7 @@ export const V1_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   kickingGame: false,
   redZone: false,
   downAndDistance: false,
+  quarterBreak: false,
 });
 
 /**
@@ -87,6 +88,7 @@ export const RECOMMENDED_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   kickingGame: true,
   redZone: true,
   downAndDistance: true,
+  quarterBreak: true,
 });
 
 /**
@@ -116,4 +118,5 @@ export const ALL_FEATURES: Required<PbpFeatureGates> = Object.freeze({
   kickingGame: true,
   redZone: true,
   downAndDistance: true,
+  quarterBreak: true,
 });

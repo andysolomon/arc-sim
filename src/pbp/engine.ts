@@ -659,10 +659,39 @@ function advanceQuarter(state: GameState): void {
   state.clockSeconds = QUARTER_SECONDS;
 }
 
+/**
+ * Does the possession survive this period boundary (`quarterBreak` gate)?
+ *
+ * Only two boundaries in a football game leave the ball with the team that
+ * had it: the ends of the first and third quarters. Everywhere else a kickoff
+ * follows — halftime, overtime, and the end of the game, where nothing
+ * follows at all — so the drive is genuinely over and the record should say so.
+ *
+ * With the gate off this is never asked, and the clock running out ends the
+ * drive at every boundary alike, which is the v1 behavior: a new drive opens
+ * at the same spot through `startDrive`, taking a fresh `down` and `distance`
+ * with it.
+ */
+function quarterBreakContinues(state: GameState): boolean {
+  if (!state.features.quarterBreak) return false;
+  if (state.inOvertime) return false;
+  return state.quarter === 1 || state.quarter === 3;
+}
+
 function checkPeriodEnd(state: GameState): void {
   if (state.clockSeconds > 0) return;
 
-  if (state.currentDriveTeamId !== null && state.currentDrivePlays.length > 0) {
+  /*
+   * A drive left open here is one that continues into the next quarter. The
+   * loop only calls `startDrive` when there is no drive in progress, so the
+   * down, the distance and the drive record all carry over by NOT acting —
+   * which is why this is one branch rather than a resume path.
+   */
+  if (
+    state.currentDriveTeamId !== null &&
+    state.currentDrivePlays.length > 0 &&
+    !quarterBreakContinues(state)
+  ) {
     endDrive(state, state.quarter === 4 && !state.inOvertime ? "end_of_game" : "end_of_half");
   }
 
@@ -2502,6 +2531,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       kickingGame: input.features?.kickingGame === true,
       redZone: input.features?.redZone === true,
       downAndDistance: input.features?.downAndDistance === true,
+      quarterBreak: input.features?.quarterBreak === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

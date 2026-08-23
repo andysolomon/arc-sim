@@ -675,4 +675,43 @@ export interface PbpFeatureGates {
    * passing yards and the rushing share of touchdowns all stay in band.
    */
   downAndDistance?: boolean;
+
+  /**
+   * A quarter ending is not a drive ending.
+   *
+   * The clock running out closed the drive at EVERY period boundary, and the
+   * loop then opened a fresh one at the same spot — through `startDrive`,
+   * which sets `down = 1` and `distance = 10`. So a team in possession when
+   * the first or third quarter expired was handed a new set of downs. Over
+   * 300 games that is 1.85 resumed drives a game, all of them 1st and 10,
+   * of which only 176 in 554 had been earned: **1.26 free first downs a
+   * game**, 63 of them handed to an offense that was actually facing fourth
+   * down and one to an offense that had already failed on it.
+   *
+   * The drive record was wrong in the same breath. One continuous drive was
+   * written down as two, inflating drives per game by about 8% and shifting
+   * every drive-level measure taken from a log — where drives start, how many
+   * reach the red zone — and both halves were stamped `end_of_half`, which at
+   * the end of the first and third quarters is not what happened.
+   *
+   * Under this gate the drive simply stays open across the Q1→Q2 and Q3→Q4
+   * boundaries: down, distance, field position and the drive record all carry
+   * over, and `end_of_half` again means a half ended. Halftime, the end of
+   * regulation and every overtime period still end the drive, because there a
+   * kickoff follows and the possession really is over.
+   *
+   * Costs no random draw in either position — it is a control-flow branch, not
+   * a roll. It is gated anyway, because it changes outcomes: a drive that used
+   * to be revived by the clock now has to convert, so the sequence diverges at
+   * the first quarter that expires with someone in possession.
+   *
+   * It does NOT move the scoreboard. Removing 1.26 free first downs a game
+   * ought to cost points, and across 1,000-game replicas the measured change
+   * came out −0.68, −0.61, +0.44, −0.44 and +0.11 — a sign that will not
+   * settle, which is what it looks like when an effect is smaller than the
+   * noise around it. Mean drive start moves from the own 36.7 to the own 34.8,
+   * which is the phantom drives leaving the population rather than anyone's
+   * field position changing, and every varsity aggregate stays in band.
+   */
+  quarterBreak?: boolean;
 }

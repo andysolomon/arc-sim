@@ -46,7 +46,15 @@ function team(id: string, strength: number): TeamSimProfile {
   };
 }
 
-function games(redZone: boolean, count = 150): PbpGameLog[] {
+/*
+ * 600, not 150. Every one of these is a claim about a distribution, and the
+ * effect the gate has on a red-zone trip is a few points wide — at 150 games
+ * the ON/OFF gap sat within noise of the 0.02 floor asserted below, so any
+ * later gate that shifts the PRNG stream resampled it into a failure that
+ * said nothing about the red zone. The sample is the fix; the thresholds are
+ * the claim and stay where they are.
+ */
+function games(redZone: boolean, count = 600): PbpGameLog[] {
   return Array.from({ length: count }, (_, i) =>
     simulateGameLog({
       home: team("home", 72),
