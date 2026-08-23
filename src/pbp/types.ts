@@ -652,4 +652,27 @@ export interface PbpFeatureGates {
    * mechanic and is not hidden inside this one.
    */
   redZone?: boolean;
+
+  /**
+   * The play-caller reads the distance, not just the down.
+   *
+   * `redZone` closed what happened inside the 20 and left the rest of the
+   * scoring gap in how often a drive got there. A drive gets there by
+   * converting, and the engine's play-caller read the down and nothing else:
+   * it ran on 3rd-and-11+ seven times in ten, where a carry converted 7% and
+   * a throw 23%, and threw on 3rd-and-1 a third of the time, where a throw
+   * converted 53% and a carry 77%. On a fourth-down go it flipped a flat 45%
+   * coin for the run, so 4th-and-1 was a pass more often than not.
+   *
+   * Under this gate short is a run, long is a pass, and the neutral downs run
+   * a little more so the split over a game stays where `playCalling` put it —
+   * the lean moves attempts between downs rather than adding any. The
+   * fourth-down go reads the distance the same way. Same draws as before, so
+   * it changes what is called and never how much randomness a play spends.
+   *
+   * Over 400 games: third-down conversion 36% → 38%, drives reaching the red
+   * zone 35% → 37%, combined scoring about three points. Carries, attempts,
+   * passing yards and the rushing share of touchdowns all stay in band.
+   */
+  downAndDistance?: boolean;
 }

@@ -101,6 +101,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `passingGame` | A completion travels a varsity distance, not a pro checkdown |
 | `kickingGame` | The kicker's rating decides the kick, at a varsity rate |
 | `redZone` | A play that would have ended deep in the end zone is not stopped at the one |
+| `downAndDistance` | The play-caller reads the distance: short is a run, long is a pass |
 
 ### Presets
 
@@ -481,6 +482,52 @@ Combined scoring moves **32.7 → 34.9** over 600 games, the rushing share of
 touchdowns 61 → 62%, and nothing else leaves its band. Two points of the nine,
 and the rest is not here — see the calibration notes for where it is.
 
+## What the coach calls (`downAndDistance` gate)
+
+`redZone` closed what happened inside the 20 and left the rest of the gap in
+how often a drive got there: 35% of drives, a professional figure, against the
+~37% a 42-point game needs at varsity conversion. A drive gets there by
+converting, so the next measurement was conversion by down, distance, and
+call, over 400 games:
+
+| | called | converted |
+| --- | --- | --- |
+| 3rd-and-1, run | 68% | 77% |
+| 3rd-and-1, pass | 32% | 53% |
+| 3rd-and-11+, run | **70%** | 7% |
+| 3rd-and-11+, pass | 30% | 23% |
+| 4th-and-1 go, run | 43% | 81% |
+| 4th-and-1 go, pass | **57%** | 52% |
+
+The play-caller read the down and nothing else. `playCalling` set the split a
+high-school offense uses over a game, and the caller applied it to every snap
+alike — a run on 3rd-and-12, a throw on 4th-and-inches — and the fourth-down go
+flipped a flat 45% coin for the run whatever the distance. No coach calls it
+that way; the distance is the first thing he looks at.
+
+Under the gate short is a run, long is a pass, and the neutral downs — 1st-and-
+10, anything-and-3-to-6 — run a little *more*, so the split over a game stays
+where `playCalling` put it. The lean moves attempts from the downs where a
+throw is wasted to the ones where it is needed; it adds none. The fourth-down
+go reads the distance the same way. Same draws, so it changes what is called
+and never how much randomness a play spends.
+
+| per team per game | flat | `downAndDistance` | varsity |
+| --- | --- | --- | --- |
+| 3rd-and-11+ pass rate | 30% | 70% | — |
+| 4th-and-short go, run | 43% | 78% | — |
+| third-down conversion | 36% | 38.5% | 35–40% |
+| drives reaching the red zone | 35% | 37.5% | — |
+| carries | 36 | 35 | 35–40 |
+| pass attempts | 16 | 18 | 15–20 |
+| passing yards | 113 | 128 | 110–150 |
+| rushing share of TDs | 62% | 64% | 55–65% |
+| combined points | 34.9 | **38.0** | ~42 |
+
+Three more points, and everything else stays in band — carries and the rushing
+share now sit at the edge of theirs, which is where the next lever would have
+to take something out.
+
 ## What a carry gains (`rushDistribution` gate)
 
 v1 drew rushing yardage from `2 + rand()*5 + edge*4`. That expression has a
@@ -548,20 +595,20 @@ Where the offense sits now, over 600 games:
 
 | per team per game | now | varsity |
 | --- | --- | --- |
-| scrimmage plays | 54 | 50–55 |
-| carries | 36 | 35–40 |
-| rushing yards | 178 | 150–180 |
-| yards per carry | 5.0 | 4.5–5.5 |
-| pass attempts | 16 | 15–20 |
-| completion rate | 52% | 50–55% |
-| passing yards | 113 | 110–150 |
-| rushing share of TDs | 62% | 55–65% |
-| sacks | 1.9 | ~2 |
-| interceptions | 1.0 | ~1 |
-| field goal rate | 66% | 55–70% |
-| extra point rate | 88% | 85–90% |
-| punt average | 33.6 | 33–37 |
-| combined points | 34.9 | ~42 |
+| scrimmage plays | 55 | 50–55 |
+| carries | 35 | 35–40 |
+| rushing yards | 170 | 150–180 |
+| yards per carry | 4.9 | 4.5–5.5 |
+| pass attempts | 18 | 15–20 |
+| completion rate | 53% | 50–55% |
+| passing yards | 128 | 110–150 |
+| rushing share of TDs | 64% | 55–65% |
+| sacks | 2.1 | ~2 |
+| interceptions | 1.1 | ~1 |
+| field goal rate | 67% | 55–70% |
+| extra point rate | 86% | 85–90% |
+| punt average | 33.7 | 33–37 |
+| combined points | 38.0 | ~42 |
 
 A varsity dropback is more dangerous than a professional one in both
 directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
@@ -585,13 +632,13 @@ about 50 plays, and 26 seconds lifts it to 54. Both numbers describe the same
 varsity offense; the shorter one simply leaves room for the play counts the
 sport actually produces.
 
-The remaining gap does not belong to any one rule. Third-down conversion is 35%
-against a real 35–40%. Drives start at their own 35, better field position than
+The remaining gap does not belong to any one rule. Third-down conversion is
+38.5% under `downAndDistance`, against a real 35–40%. Drives start at their own 35, better field position than
 real football — and note that `kickReturns` deliberately did **not** touch that,
 because the kickoff already spots them at the 29 and moving it would have been a
 scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 59%
 under `redZone`, inside the 55–65% band. **Thirteen of the fourteen measures
-above are now in band**, and the aggregate is still about seven points light —
+above are now in band**, and the aggregate is still about four points light —
 which means closing it requires taking something OUT of band. A trade, not a
 fix.
 
@@ -600,17 +647,20 @@ is, and cost about a point — so the missing points were never in the kicks.
 Real varsity reaches 42 with *this* kicking, which localized the shortfall to
 touchdowns: drives that reach the red zone and what happens to them there.
 
-`redZone` took the second half of that. What happened there was a goal-line
-stand on four trips in ten, a flat stop rate that did not ask how far past the
-line the play would have gone, and fixing it was worth two points — the table
-above is measured with it on. What it did not change is the first half: a
-drive reaches the red zone 3.2 times a team a game, 29% of drives, which is a
-professional figure, and at 59% conversion the remaining seven points need
-about one more trip a game. Per-play conversion from the 1–3 now sits slightly
-*above* the real rate from the one, so there is no second red-zone lever left
-that is not a multiplier. More trips means more yards per drive, and every
-yardage distribution that feeds that is in band. That is where the evidence
-stops.
+`redZone` took the second half of that: a goal-line stand on four trips in
+ten, a flat stop rate that did not ask how far past the line the play would
+have gone, worth two points. `downAndDistance` took the first half: a
+play-caller that ran on 3rd-and-12 and threw on 4th-and-inches, worth three.
+Both are mechanisms a coach would recognise, neither is a multiplier, and the
+table above is measured with both on.
+
+What is left, about four points, has no such mechanism behind it that the
+evidence supports. Per-play conversion at the goal line sits at the real rate
+from the one; third down sits in the upper half of its band; carries and the
+rushing share of touchdowns sit at the *edge* of theirs, so leaning the call
+further toward the pass would push them out. The remaining trips would have to
+come from yards per play, and every yardage distribution is in band. That is
+where the evidence stops, and this document stops with it.
 
 That the last one is scoring is not a coincidence. Points are the most derived
 quantity here: every play-level distribution feeds it, so it is the measure with
@@ -772,6 +822,8 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 12. Under `redZone`, a play that would have ended three or more yards past the
     goal line is never stopped at the one; a play that would have ended at the
     line is stopped exactly as often as `goalLineConversion` stopped it
+13. Under `downAndDistance`, a play spends the same draws it did without it —
+    the gate changes what is called, never how much randomness a snap consumes
 
 ## No free lunch in the scheme catalog
 

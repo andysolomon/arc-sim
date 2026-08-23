@@ -51,18 +51,18 @@ npx @arc-sim/core --games 500
 ```
 
 ```
-    scrimmage plays       54            50–55
-    carries               36            35–40
-    rushing yards         178           150–180
-    yards per carry       5.0           4.5–5.5
-    completion rate       52%           50–55%
-    sacks                 1.9           ~2
-    interceptions         1.0           ~1
-    rushing share of TDs  62%           55–65%
-    field goal rate       66%           55–70%
-    extra point rate      88%           85–90%
-    punt average          33.6          33–37
-    combined points       34.9          ~42
+    scrimmage plays       55            50–55
+    carries               35            35–40
+    rushing yards         170           150–180
+    yards per carry       4.9           4.5–5.5
+    completion rate       53%           50–55%
+    sacks                 2.1           ~2
+    interceptions         1.1           ~1
+    rushing share of TDs  64%           55–65%
+    field goal rate       67%           55–70%
+    extra point rate      86%           85–90%
+    punt average          33.7          33–37
+    combined points       38.0          ~42
 ```
 
 ## Quick start
@@ -142,7 +142,7 @@ knowing before you spend an afternoon on it.
 ## Which features to turn on
 
 Every v2 mechanic is a gate, so a league can decline any of them. That is
-nineteen booleans, and most callers do not want an opinion about all of them:
+twenty booleans, and most callers do not want an opinion about all of them:
 
 | preset | what it is |
 | --- | --- |
