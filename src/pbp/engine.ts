@@ -1477,13 +1477,38 @@ function carryYards(
  * breakaway is discounted hard — a back who broke a 20-yard run was not caught
  * from behind at the one.
  *
+ * Under `redZone` the stand also reads HOW FAR past the line the play would
+ * have gone. The yardage draw says where the carrier would have been tackled
+ * on an open field; a play that would have ended at the line is the one in
+ * doubt at the pylon, and one that would have ended three yards deep in the
+ * end zone was not stopped at the one by anybody. The flat stand applied the
+ * full rate to both, which is why 38% of red-zone trips contained a play that
+ * reached the goal line and was turned back — a goal-line stand on four
+ * drives in ten. Plays from the 1–3 converted at 45%, which is the real rate
+ * from the 3, not from the 1.
+ *
  * Costs exactly one draw, the same one `doRush` already spent here, which is
  * why the rush path stays draw-for-draw identical when the gate is off.
  */
 function stoppedAtGoalLine(state: GameState, yards: number, edge: number): boolean {
   const stand = clamp(0.38 - edge * 0.04, 0.1, 0.55);
-  return state.rand() < (yards >= 15 ? stand * 0.35 : stand);
+  const atTheLine = yards >= 15 ? stand * 0.35 : stand;
+  if (!state.features.redZone) return state.rand() < atTheLine;
+  // `fieldPosition` is still pre-snap here; the result has not been applied.
+  const margin = state.fieldPosition + yards - 100;
+  return state.rand() < atTheLine * Math.max(0, 1 - margin / GOAL_LINE_MARGIN);
 }
+
+/**
+ * Yards past the goal line at which a play is no longer in doubt (`redZone`).
+ *
+ * The stand decays linearly from its full rate at the line to nothing here.
+ * Three is the length of a tackle: a carrier who would have been brought down
+ * three yards deep was across before anyone reached him. Tuned against the
+ * per-play conversion from the 1–3, which lands at 61% on the ground and 53%
+ * through the air — the real figures from the one are about 58% and 45%.
+ */
+const GOAL_LINE_MARGIN = 3;
 
 function doRush(state: GameState): void {
   const off = offenseTeam(state);
@@ -2423,6 +2448,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       playCalling: input.features?.playCalling === true,
       passingGame: input.features?.passingGame === true,
       kickingGame: input.features?.kickingGame === true,
+      redZone: input.features?.redZone === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

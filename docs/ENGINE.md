@@ -100,6 +100,7 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `playCalling` | Run-pass split matched to high school, not the pros |
 | `passingGame` | A completion travels a varsity distance, not a pro checkdown |
 | `kickingGame` | The kicker's rating decides the kick, at a varsity rate |
+| `redZone` | A play that would have ended deep in the end zone is not stopped at the one |
 
 ### Presets
 
@@ -437,6 +438,49 @@ already spent rather than adding one, so the gate costs nothing extra — but it
 changes every kick's odds, so it is opt-in. Verified inert when off beside
 every other gate, and the v1 golden fixture regenerates byte-for-byte.
 
+## What happens in the red zone (`redZone` gate)
+
+With thirteen of fourteen varsity aggregates in band and combined scoring nine
+points light, `kickingGame` showed the points were not in the kicks — making
+the kicking worse cost one. That localized the shortfall to touchdowns, and
+measuring red-zone trips over 400 games localized it again, to the goal line:
+
+| per red-zone trip | flat stand |
+| --- | --- |
+| trips per team per game | 3.27 |
+| ended in a touchdown | 54% |
+| contained a play stopped at the one | **0.39** |
+| per-play conversion from the 1–3, rushing | 45% |
+| per-play conversion from the 1–3, passing | 39% |
+
+A goal-line stand on four drives in ten. The `goalLineConversion` stand asked
+the right question — the ball got there, did the defense hold — but asked it at
+a flat rate no matter how far past the line the play would have gone. The
+yardage draw says where the carrier would have been tackled on an open field,
+and a play that would have ended *at* the line is the one in doubt at the
+pylon; one that would have ended three yards deep was across before anyone
+reached him. Treating both the same is what made a play from the one convert at
+the real rate from the three.
+
+Under the gate the stand reads the margin: full at the line, decaying linearly
+to nothing three yards past it — the length of a tackle. The breakaway discount
+stays. That is the whole change: no multiplier, no new draw. It replaces the
+stand's own roll, so a log with the gate on agrees play for play with one
+without it until the first play that reached the line and was decided
+differently — verified over 150 game pairs.
+
+| per red-zone trip | flat stand | `redZone` | real |
+| --- | --- | --- | --- |
+| ended in a touchdown | 54% | 59% | 55–65% |
+| contained a play stopped at the one | 0.39 | 0.16 | — |
+| reached inside the 5 and scored | 74% | 80% | ~80–85% |
+| per-play conversion from the 1–3, rushing | 45% | 61% | ~58% from the 1 |
+| per-play conversion from the 1–3, passing | 39% | 53% | ~45% from the 1 |
+
+Combined scoring moves **32.7 → 34.9** over 600 games, the rushing share of
+touchdowns 61 → 62%, and nothing else leaves its band. Two points of the nine,
+and the rest is not here — see the calibration notes for where it is.
+
 ## What a carry gains (`rushDistribution` gate)
 
 v1 drew rushing yardage from `2 + rand()*5 + edge*4`. That expression has a
@@ -506,18 +550,18 @@ Where the offense sits now, over 600 games:
 | --- | --- | --- |
 | scrimmage plays | 54 | 50–55 |
 | carries | 36 | 35–40 |
-| rushing yards | 176 | 150–180 |
-| yards per carry | 4.9 | 4.5–5.5 |
+| rushing yards | 178 | 150–180 |
+| yards per carry | 5.0 | 4.5–5.5 |
 | pass attempts | 16 | 15–20 |
-| completion rate | 53% | 50–55% |
-| passing yards | 112 | 110–150 |
-| rushing share of TDs | 61% | 55–65% |
+| completion rate | 52% | 50–55% |
+| passing yards | 113 | 110–150 |
+| rushing share of TDs | 62% | 55–65% |
 | sacks | 1.9 | ~2 |
 | interceptions | 1.0 | ~1 |
-| field goal rate | 67% | 55–70% |
-| extra point rate | 87% | 85–90% |
+| field goal rate | 66% | 55–70% |
+| extra point rate | 88% | 85–90% |
 | punt average | 33.6 | 33–37 |
-| combined points | 32.7 | ~42 |
+| combined points | 34.9 | ~42 |
 
 A varsity dropback is more dangerous than a professional one in both
 directions, and the sack and interception rates were NFL figures — 7% and 2.5%.
@@ -545,15 +589,28 @@ The remaining gap does not belong to any one rule. Third-down conversion is 35%
 against a real 35–40%. Drives start at their own 35, better field position than
 real football — and note that `kickReturns` deliberately did **not** touch that,
 because the kickoff already spots them at the 29 and moving it would have been a
-scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 60%,
-inside the 55–60% band. **Thirteen of the fourteen measures above are now in
-band**, and the aggregate is still about nine points light — which means
-closing it requires taking something OUT of band. A trade, not a fix.
+scoring change smuggled in behind a bookkeeping fix. Red-zone conversion is 59%
+under `redZone`, inside the 55–65% band. **Thirteen of the fourteen measures
+above are now in band**, and the aggregate is still about seven points light —
+which means closing it requires taking something OUT of band. A trade, not a
+fix.
 
 `kickingGame` is the instructive case. It made the kicking worse, as the sport's
 is, and cost about a point — so the missing points were never in the kicks.
-Real varsity reaches 42 with *this* kicking, which localizes the shortfall to
+Real varsity reaches 42 with *this* kicking, which localized the shortfall to
 touchdowns: drives that reach the red zone and what happens to them there.
+
+`redZone` took the second half of that. What happened there was a goal-line
+stand on four trips in ten, a flat stop rate that did not ask how far past the
+line the play would have gone, and fixing it was worth two points — the table
+above is measured with it on. What it did not change is the first half: a
+drive reaches the red zone 3.2 times a team a game, 29% of drives, which is a
+professional figure, and at 59% conversion the remaining seven points need
+about one more trip a game. Per-play conversion from the 1–3 now sits slightly
+*above* the real rate from the one, so there is no second red-zone lever left
+that is not a multiplier. More trips means more yards per drive, and every
+yardage distribution that feeds that is in band. That is where the evidence
+stops.
 
 That the last one is scoring is not a coincidence. Points are the most derived
 quantity here: every play-level distribution feeds it, so it is the measure with
@@ -712,6 +769,9 @@ pnpm demo:render   # simulate a game headlessly, then watch it
     equals the sum of what the engine simulated
 11. Under `kickingGame`, a better-rated kicker makes more of his kicks and is
     sent out from further; with it off, the rating is read by nobody
+12. Under `redZone`, a play that would have ended three or more yards past the
+    goal line is never stopped at the one; a play that would have ended at the
+    line is stopped exactly as often as `goalLineConversion` stopped it
 
 ## No free lunch in the scheme catalog
 

@@ -625,4 +625,31 @@ export interface PbpFeatureGates {
    * it changes every kick's odds, so it has to be opt-in.
    */
   kickingGame?: boolean;
+
+  /**
+   * What happens to a drive once it reaches the red zone.
+   *
+   * With every other varsity aggregate in band, combined scoring sat nine
+   * points light, and `kickingGame` showed the points were not in the kicks:
+   * making the kicking worse cost one point. That localized the shortfall to
+   * touchdowns, and the touchdowns to the goal line, where the
+   * `goalLineConversion` stand turned back a play that reached the line at a
+   * flat rate no matter how far past it the play would have gone. Measured
+   * over 400 games, 38% of red-zone trips contained a play that reached the
+   * goal line and was stopped at the one — a goal-line stand on four drives
+   * in ten — and a play from the 1–3 converted at 45%, the real rate from the
+   * three rather than from the one.
+   *
+   * Under this gate the stand reads the margin: full at the line, gone three
+   * yards past it. A carrier who would have been tackled three yards deep in
+   * the end zone was across before anyone reached him. That is the whole
+   * change — no multiplier on scoring, no new draw. It replaces the stand's
+   * own roll, so the sequence only differs on a play that reached the line.
+   *
+   * Red-zone conversion moves 54% → 59% and combined scoring about two
+   * points. It does NOT close the gap, and says so in the calibration notes:
+   * what remains is how often a drive gets there, which is not a red-zone
+   * mechanic and is not hidden inside this one.
+   */
+  redZone?: boolean;
 }
