@@ -29,6 +29,7 @@ export {
 } from "./migrate-log.js";
 export {
   deriveStatLines,
+  attributedPoints,
   allPlays,
   sumTeamStatGroup,
   type DerivedPlayerStatLine,

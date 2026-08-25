@@ -6,6 +6,15 @@ export interface StatPassing {
   td?: number;
   int?: number;
   sacked?: number;
+  /**
+   * Two-point tries thrown, and the ones that converted.
+   *
+   * Kept out of `att` / `comp` / `yards` / `td` on purpose — a real box score
+   * keeps the try apart from the passing line, and folding it in would move
+   * completion percentage on a play that is not a scrimmage down.
+   */
+  twoPtAtt?: number;
+  twoPtConv?: number;
 }
 
 export interface StatRushing {
@@ -21,6 +30,9 @@ export interface StatReceiving {
   td?: number;
   long?: number;
   targets?: number;
+  /** Two-point tries thrown to him, and the ones that converted. */
+  twoPtAtt?: number;
+  twoPtConv?: number;
 }
 
 export interface StatDefense {
@@ -33,6 +45,16 @@ export interface StatDefense {
   ff?: number;
   fr?: number;
   defTd?: number;
+  /**
+   * Yards he brought an interception back.
+   *
+   * The engine has always rolled this and spotted the ball with it; until there
+   * was a field to put it in, the box score threw it away. Absent on a log the
+   * engine never wrote `returnYards` to, which is not the same as zero.
+   */
+  intYards?: number;
+  /** Safeties he made — two points, and the only ones the defense scores by tackle. */
+  safeties?: number;
 }
 
 export interface StatKicking {

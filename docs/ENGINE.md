@@ -746,6 +746,110 @@ un-pinning something that is currently correct.
 
 Plays with `penalty.negatesPlay` grant zero stat credit.
 
+`attributedPoints(lines)` sums the points those lines account for — invariant 15
+in executable form, and the check the section below exists to describe.
+
+## Every point on the scoreboard belongs to somebody
+
+The box score accounted for 97.1% of the points the engine scored. Reconciling
+the scoreboard against the derived lines over 600 games with
+`RECOMMENDED_FEATURES`:
+
+```
+scoreboard points: 23208    box-score points: 22534    unaccounted: 674  (2.9%)
+```
+
+1.1 points a game with no home in any stat line. It did not decay gracefully —
+it decomposed exactly, into four plays the reducer never credited:
+
+| what scored | over 600 games | why it was missed |
+| --- | --- | --- |
+| pick-six | 70 TDs, 420 pts | `defense.defTd` was declared in `emptyLine` and incremented by nothing |
+| punt return TD | 23 TDs, 138 pts | `prTd` was guarded on `isScoring`, which is `false` on every one of them |
+| two-point conversion | 40, 80 pts | the reducer had no `case` for either play type |
+| safety | 18, 36 pts | the tackler the engine named got nothing |
+
+420 + 138 + 80 + 36 = 674. The kickoff return touchdown was the one return score
+already credited, which is what marks the other three as oversights rather than
+a decision: someone fixed `isScoring` → `isReturnTd` for the kickoff, wrote the
+reason in a comment, and left the identical line in the punt case one block
+below.
+
+Three more of the same species, found alongside — a quantity the engine
+simulates that the box score throws away:
+
+| | over 600 games |
+| --- | --- |
+| interception return yardage no field could hold | 1,327 picks, mean **10.0 yards** |
+| punts credited as a return that was a fair catch, touchback or downed ball | **1,788 phantom returns**, 3 a game |
+| strip-sacks whose fumbler and recoverer nobody read | **294**, one every other game |
+
+**What the fix is.** Six new fields — `defense.intYards`, `defense.safeties`,
+and `twoPtAtt` / `twoPtConv` on `passing` and `receiving` — and one structural
+change: `creditDefense` and `creditFumble` now run from the reduction itself
+rather than from inside two of its cases. Being wired up case by case is how
+they came to be missing; the man who made a safety got no tackle, and a
+strip-sack named a fumbler that no stat line ever heard about.
+
+The try is kept out of the passing and receiving lines rather than folded into
+them, which is both how a real box score reports it and the narrower claim: a
+two-point conversion has no down and no distance, and counting it as an attempt
+would move completion percentage on a play that is not a scrimmage down.
+
+Interception return yardage gets no fallback. A log without `scoringV2` never
+wrote `returnYards` on a pick and contains nothing to derive it from — inventing
+one from a final figure is the defect `returnStats` was written to remove, not a
+precedent to follow. Absent stays absent.
+
+**A punt nobody returned is not a return.** `doPuntWithReturn` builds
+`participants` with a returner before the fair-catch, touchback and downed
+branches run, so the reducer counted a return on every punt: 4,252 recorded
+where 2,464 happened, dragging the reported average from a true 9.6 yards to
+5.6. The yardage was always right — `returnStats` had made that total match the
+engine's exactly — only the denominator was counting men who stood and watched.
+
+The reducer now reads the return instead of the name, gated on `puntReturns`,
+because the same recorded zero means two different things. Under the gate a zero
+is a decision the engine made. Without it, v1 returned every punt and a zero
+only means the net clamp bit, so reading it as a fair catch would credit an
+event that was never simulated and would move a count underneath logs a league
+has already stored.
+
+**Honest absence in the log is still owed, and it is not free.** The rule the
+kickoff already states —
+
+> Nobody is the returner on a touchback. v1 named one on every kickoff, which is
+> how a box score came to credit returns that were never made.
+
+— reads as though the punt should simply follow it, one conditional in
+`doPuntWithReturn`, changing the play's `participants` array and nothing else.
+It does not. `applyAttrition` reads `play.participants`: once to charge each man
+a snap, and again as `floor(roll * participants.length)` to choose who got hurt.
+Dropping a name from a punt therefore changes **which player is injured on it**,
+and every play after. Measured over 200 games: with `injuries` off the logs are
+identical, with it on they diverge. The draw count is unchanged, which is what
+makes it invisible to the usual test for a gate that leaks — the sequence does
+not shift, the outcome does.
+
+So the returner keeps taking phantom snaps and absorbing phantom injury risk
+until someone lands that behind its own gate. It is a real defect and a
+different one: an RNG-shifting change to what the engine simulates, not to what
+the box score reads.
+
+**No gate on the rest, and the reason is not that it was convenient.** Every
+field this change added reads `isReturnTd`, `defensivePoints`, a v2 play type or
+`returnYards`, none of which a v1 log contains — so a v1 log's derived stats
+cannot move, which is measured rather than assumed
+(`box-score-attribution.test.ts`). That is what makes it different from
+`returnStats`, which replaced a wrong non-zero number with a different one and
+had to be opt-in. Nothing here overwrites a credit; it finishes a reduction that
+stopped early.
+
+Verified over 1,800 games in three preset configurations: every game reconciles
+to the point, on both sides of the ledger; `pnpm sim --games 600` reports the
+same aggregates it did before, field for field; and `pnpm gen:golden` leaves the
+v1 fixture byte-for-byte identical. No game changes.
+
 ## Rendering seam (`timeline` gate)
 
 The engine stays headless. A renderer subscribes to what it produced.
@@ -898,6 +1002,10 @@ pnpm demo:render   # simulate a game headlessly, then watch it
     appears only at halftime and at the end of an overtime period, the offense
     keeps its down and distance across Q1→Q2 and Q3→Q4, and no snap is ever
     handed a first down it did not earn
+15. Points attributable to players in `deriveStatLines` equal the final score —
+    for each team, not only in total. Invariants 2 and 3 stop at the play level;
+    this one is the same promise carried through to the derived stats, and it is
+    the assertion that catches a scoring play the reducer forgot to read
 
 ## No free lunch in the scheme catalog
 
@@ -957,6 +1065,11 @@ check that nothing moved.
 
 ## What was left behind (on purpose)
 
+- **Honest absence for the punt returner in the log itself.** The reducer no
+  longer counts a return that was not returned, but the play still names a man
+  who fair caught it, and `applyAttrition` charges him a snap and lets him be
+  the one injured. Fixing it changes outcomes under `injuries` (see the
+  attribution section above), so it needs its own gate.
 - Convex persistence (`gamePlayLogs`, injuries, rivalries tables)
 - Gamecast / schedule UI
 - Dynasty progression, recruiting, offseason

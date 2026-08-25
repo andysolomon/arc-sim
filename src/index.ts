@@ -13,6 +13,7 @@ export {
   normalizedPlays,
   logModels,
   deriveStatLines,
+  attributedPoints,
   allPlays,
   sumTeamStatGroup,
   deriveWeather,

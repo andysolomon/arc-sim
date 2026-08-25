@@ -125,10 +125,10 @@ for (const { playerId, statLine } of deriveStatLines(log)) {
 
 | Group | Fields |
 | --- | --- |
-| `passing` | `comp` `att` `yards` `td` `int` `sacked` |
+| `passing` | `comp` `att` `yards` `td` `int` `sacked` `twoPtAtt` `twoPtConv` |
 | `rushing` | `carries` `yards` `td` `long` |
-| `receiving` | `rec` `yards` `td` `long` `targets` |
-| `defense` | `tacklesSolo` `tacklesAst` `tfl` `sacks` `int` `passDef` `ff` `fr` `defTd` |
+| `receiving` | `rec` `yards` `td` `long` `targets` `twoPtAtt` `twoPtConv` |
+| `defense` | `tacklesSolo` `tacklesAst` `tfl` `sacks` `int` `intYards` `passDef` `ff` `fr` `defTd` `safeties` |
 | `returns` | `krCount` `krYards` `krTd` `prCount` `prYards` `prTd` |
 | `kicking` | `fgMade` `fgAtt` `xpMade` `xpAtt` |
 | `punting` | `punts` `yards` `long` |
@@ -138,6 +138,24 @@ They are football's names, not guessable synonyms: it is `carries` and not
 `attempts`, `rec` and not `receptions`. Reaching for the wrong one yields
 `undefined` rather than an error, so a box score quietly reads as zeroes — worth
 knowing before you spend an afternoon on it.
+
+A two-point try is kept out of `att` / `comp` / `rec` / `td` and reported in
+`twoPtAtt` / `twoPtConv`, the way a real box score keeps it: it has no down and
+no distance, so counting it as a pass attempt would move completion percentage
+on a play that is not a scrimmage down.
+
+Every point on the scoreboard is in here somewhere. `attributedPoints(lines)`
+adds up what the lines account for, and it equals the final score for every game
+the engine produces — a touchdown, a field goal, an extra point, a two-point
+conversion or a safety, whichever side of the ball scored it:
+
+```ts
+import { attributedPoints, deriveStatLines } from "@arc-sim/core";
+
+const lines = deriveStatLines(log);
+attributedPoints(lines) === log.homeScore + log.awayScore; // always
+attributedPoints(lines.filter((l) => l.teamId === log.homeTeamId)) === log.homeScore;
+```
 
 ## Which features to turn on
 
@@ -214,6 +232,7 @@ Scores and player stats are **derived from plays**, never invented from a final 
 | --- | --- |
 | `simulateGameLog` | Run the game → `PbpGameLog` |
 | `deriveStatLines` | Reduce the log → per-player box scores |
+| `attributedPoints` | Sum the points those box scores account for — always the final score |
 | Feature gates | Opt-in v2 mechanics (penalties, clock AI, injuries, …) |
 | `playTimeline` | Reduce a play → ordered events for a renderer |
 | Seeded RNG | Same seed → byte-identical log |

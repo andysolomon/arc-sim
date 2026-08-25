@@ -20,9 +20,26 @@ export type MutableLine = {
 
 export function emptyLine(): MutableLine {
   return {
-    passing: { comp: 0, att: 0, yards: 0, td: 0, int: 0, sacked: 0 },
+    passing: {
+      comp: 0,
+      att: 0,
+      yards: 0,
+      td: 0,
+      int: 0,
+      sacked: 0,
+      twoPtAtt: 0,
+      twoPtConv: 0,
+    },
     rushing: { carries: 0, yards: 0, td: 0, long: 0 },
-    receiving: { rec: 0, yards: 0, td: 0, long: 0, targets: 0 },
+    receiving: {
+      rec: 0,
+      yards: 0,
+      td: 0,
+      long: 0,
+      targets: 0,
+      twoPtAtt: 0,
+      twoPtConv: 0,
+    },
     defense: {
       tacklesSolo: 0,
       tacklesAst: 0,
@@ -33,6 +50,8 @@ export function emptyLine(): MutableLine {
       ff: 0,
       fr: 0,
       defTd: 0,
+      intYards: 0,
+      safeties: 0,
     },
     kicking: { fgMade: 0, fgAtt: 0, xpMade: 0, xpAtt: 0 },
     punting: { punts: 0, yards: 0, long: 0 },
@@ -76,9 +95,20 @@ function isNegativePlay(play: PbpPlay): boolean {
   return play.yardsGained < 0 && (play.playType === "rush" || play.playType === "sack");
 }
 
+/**
+ * What the log this play came from is known to model.
+ *
+ * Only `puntReturns` matters so far, and it matters because the same recorded
+ * zero means two different things depending on it — see the punt case below.
+ */
+export interface DerivedFrom {
+  puntReturns?: boolean;
+}
+
 export function applyPlay(
   map: Map<string, MutableLine>,
   play: PbpPlay,
+  models: DerivedFrom = {},
 ): void {
   switch (play.playType) {
     case "kickoff": {
@@ -116,7 +146,32 @@ export function applyPlay(
         line.punting.yards += play.yardsGained;
         line.punting.long = bumpLong(line.punting.long, play.yardsGained);
       }
-      if (returner) {
+      /*
+       * A punt nobody returned is not a return.
+       *
+       * `doPuntWithReturn` names a returner on every punt — the array is built
+       * before the fair catch, touchback and downed branches run — and 42% of
+       * them are never brought back, so the reducer counted 4,252 returns where
+       * 2,464 happened and reported 5.6 yards a return against a true 9.6. The
+       * yardage was always right; the denominator was counting men who stood
+       * and watched.
+       *
+       * Read here rather than fixed in the engine, and that is not a shortcut.
+       * `applyAttrition` reads `play.participants` — for snap cost, and for
+       * `floor(roll * participants.length)` to pick who got hurt — so removing
+       * a name from a punt changes which player is injured on it and every play
+       * after. Measured: identical logs with `injuries` off, divergent with it
+       * on. Honest absence in the log is the better shape and is still owed;
+       * it is an RNG-shifting change and belongs behind its own gate.
+       *
+       * Gated on `puntReturns` because the recorded zero means two different
+       * things. Under it, zero is a fair catch, a touchback or a ball downed in
+       * coverage — the engine modelled the decision. Without it, v1 returned
+       * every punt and zero only means the net clamp bit, so reading it as a
+       * fair catch would credit an event the engine never simulated.
+       */
+      const wasReturned = !models.puntReturns || (play.returnYards ?? 0) > 0;
+      if (returner && wasReturned) {
         const line = getLine(map, returner.playerId);
         line.returns.prCount += 1;
         /*
@@ -132,7 +187,14 @@ export function applyPlay(
          */
         line.returns.prYards +=
           play.returnYards ?? Math.max(0, Math.round(play.yardsGained * 0.25));
-        if (play.isScoring) line.returns.prTd += 1;
+        /*
+         * The same flag the kickoff reads twenty lines up, and for the same
+         * reason: a punt returned to the house is the RECEIVING team scoring on
+         * a play its opponent ran, so it lands in `defensivePoints` and leaves
+         * `isScoring` false. Reading `isScoring` here credited nobody, ever —
+         * 23 punt-return touchdowns in 600 games with no home in any stat line.
+         */
+        if (play.isReturnTd) line.returns.prTd += 1;
       }
       break;
     }
@@ -166,8 +228,6 @@ export function applyPlay(
         line.rushing.long = bumpLong(line.rushing.long, play.yardsGained);
         if (play.isScoring) line.rushing.td += 1;
       }
-      creditDefense(map, play);
-      creditFumble(map, play);
       break;
     }
     case "pass_complete": {
@@ -188,7 +248,6 @@ export function applyPlay(
         line.receiving.long = bumpLong(line.receiving.long, play.yardsGained);
         if (play.isScoring) line.receiving.td += 1;
       }
-      creditDefense(map, play);
       break;
     }
     case "pass_incomplete": {
@@ -233,13 +292,84 @@ export function applyPlay(
         getLine(map, receiver.playerId).receiving.targets += 1;
       }
       if (interceptor) {
-        getLine(map, interceptor.playerId).defense.int += 1;
+        const line = getLine(map, interceptor.playerId);
+        line.defense.int += 1;
+        /*
+         * How far he brought it back. The engine has rolled this on every pick
+         * since v1 and spotted the ball with it; there was no field to put it
+         * in, so 13,265 simulated yards over 600 games went nowhere.
+         *
+         * `?? 0` and not a reconstruction: a log without `scoringV2` never
+         * wrote `returnYards`, and there is nothing in it to derive the return
+         * from — `yardsGained` on a pick is the return, but only under the gate
+         * that also records it, so guessing would credit the same number twice
+         * as often as it is right. Absent stays absent.
+         */
+        line.defense.intYards += play.returnYards ?? 0;
+        /*
+         * Pick-six. `defTd` was declared in `emptyLine` and incremented by
+         * nothing, so 70 defensive touchdowns in 600 games read as plain
+         * interceptions and their 420 points belonged to nobody.
+         */
+        if (play.isReturnTd) line.defense.defTd += 1;
       }
+      break;
+    }
+    case "two_point_convert":
+    case "two_point_fail": {
+      /*
+       * The try was falling through `default: break` — no attempt, no credit,
+       * and 40 conversions worth 80 points with no home in any stat line.
+       *
+       * Kept in its own fields rather than folded into the passing and
+       * receiving lines, which is how a real box score reports it: a two-point
+       * try is not a scrimmage down, and counting it as an attempt would move
+       * completion percentage on a play that has no down and no distance.
+       */
+      const converted = play.playType === "two_point_convert";
+      const passer = findParticipant(play, "passer");
+      const receiver = findParticipant(play, "receiver");
+      if (passer) {
+        const line = getLine(map, passer.playerId);
+        line.passing.twoPtAtt += 1;
+        if (converted) line.passing.twoPtConv += 1;
+      }
+      if (receiver) {
+        const line = getLine(map, receiver.playerId);
+        line.receiving.twoPtAtt += 1;
+        if (converted) line.receiving.twoPtConv += 1;
+      }
+      break;
+    }
+    case "safety": {
+      /*
+       * Two points, and the only ones a defense scores by making a tackle. The
+       * engine names the man who made it; the reducer had no case for the play
+       * at all, so 18 safeties over 600 games credited nobody.
+       *
+       * The tackle itself comes from `creditDefense` below, which now runs on
+       * every play type rather than on two of them.
+       */
+      const tackler = findParticipant(play, "tackler_solo");
+      if (tackler) getLine(map, tackler.playerId).defense.safeties += 1;
       break;
     }
     default:
       break;
   }
+
+  /*
+   * Tackles and fumbles are credited from here rather than from inside the
+   * cases, because being wired up case by case is exactly how they came to be
+   * missing: `creditDefense` was called from `rush` and `pass_complete` and
+   * nowhere else, so the man who made a safety got nothing, and a strip-sack
+   * named a fumbler and a recoverer that no stat line ever heard about.
+   *
+   * Both functions credit only the roles they find, so running them on every
+   * play type costs a filter on plays that name neither.
+   */
+  creditDefense(map, play);
+  creditFumble(map, play);
 }
 
 function creditDefense(map: Map<string, MutableLine>, play: PbpPlay): void {
@@ -267,6 +397,14 @@ function creditFumble(map: Map<string, MutableLine>, play: PbpPlay): void {
     const line = getLine(map, recoverer.playerId);
     line.defense.fr += 1;
     if (fumbler) line.defense.ff += 1;
+    /*
+     * A recovery taken to the house. No engine path reaches the end zone this
+     * way today — measured at zero over 600 games — but a fumble return
+     * touchdown is a scoring play the log's type already permits, and the
+     * alternative is the defect this whole change is about: a field that
+     * exists, is reachable, and is incremented by nothing.
+     */
+    if (play.isReturnTd) line.defense.defTd += 1;
   }
 }
 
@@ -293,6 +431,9 @@ export function pruneLine(line: MutableLine): PlayerGameStatLine {
 export function deriveStatLines(log: PbpGameLog): DerivedPlayerStatLine[] {
   const map = new Map<string, MutableLine>();
   const teamByPlayer = new Map<string, string>();
+  // Recorded gates, read as `logModels` reads them: absent or unreadable means
+  // the mechanic was not modelled, which is the conservative answer.
+  const models: DerivedFrom = { puntReturns: log.features?.puntReturns === true };
 
   for (const drive of log.drives) {
     for (const play of drive.plays) {
@@ -307,7 +448,7 @@ export function deriveStatLines(log: PbpGameLog): DerivedPlayerStatLine[] {
       for (const p of play.participants) {
         teamByPlayer.set(p.playerId, p.teamId);
       }
-      applyPlay(map, play);
+      applyPlay(map, play, models);
     }
   }
 
@@ -316,6 +457,38 @@ export function deriveStatLines(log: PbpGameLog): DerivedPlayerStatLine[] {
     teamId: teamByPlayer.get(playerId) ?? log.homeTeamId,
     statLine: pruneLine(line),
   }));
+}
+
+/**
+ * Points the box score attributes to the players in it.
+ *
+ * Invariant 15 in executable form: this equals `homeScore + awayScore` for any
+ * log the engine produces. It was 97.1% of it — a pick-six, a punt returned to
+ * the house, a two-point try and a safety each scored on the field and landed
+ * in nobody's line, 1.1 points a game.
+ *
+ * Counted from the side that scored, once. A touchdown pass appears in both the
+ * passer's `td` and the receiver's, and a two-point try in both `twoPtConv`, so
+ * only the receiving half is read — the same convention that keeps `passing.td`
+ * out of any team's point total.
+ */
+export function attributedPoints(lines: DerivedPlayerStatLine[]): number {
+  return lines.reduce((sum, { statLine: s }) => {
+    const touchdowns =
+      (s.rushing?.td ?? 0) +
+      (s.receiving?.td ?? 0) +
+      (s.returns?.krTd ?? 0) +
+      (s.returns?.prTd ?? 0) +
+      (s.defense?.defTd ?? 0);
+    return (
+      sum +
+      6 * touchdowns +
+      3 * (s.kicking?.fgMade ?? 0) +
+      (s.kicking?.xpMade ?? 0) +
+      2 * (s.receiving?.twoPtConv ?? 0) +
+      2 * (s.defense?.safeties ?? 0)
+    );
+  }, 0);
 }
 
 export function allPlays(log: PbpGameLog): PbpPlay[] {
