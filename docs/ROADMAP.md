@@ -17,7 +17,7 @@ Nothing below reopens it as a tuning question. The matchups gate was the one
 item that might have moved it as a consequence; it moved it a tenth of a point,
 which is to say it did not.
 
-Nothing has shipped. `package.json` says 0.1.0 and the package is not on npm.
+Nothing has shipped, and nothing is scheduled to. `package.json` says 0.1.0 and the package is not on npm.
 The provenance release pipeline is built and has never fired. CI is green on
 every commit to `main`.
 
@@ -72,20 +72,17 @@ In the order it listed them. Each has a section in `ENGINE.md`.
 
 ## In order
 
-### 1. Publish 0.2.0
-
-Whenever the work should be usable outside this repo. The pipeline is
-documented under "Releasing" in the README; the one-time setup is an
-`NPM_TOKEN` secret, which the repository does not yet have. Publishing is
-outward-facing and gets confirmed first.
-
-```bash
-npm version minor && git push --follow-tags
-gh release create v0.2.0 --generate-notes
-```
+Nothing. The list is empty, which is what it was supposed to become. What
+comes next is whatever the next measurement says is wrong; the candidates are
+below, and none of them is owed.
 
 ## Not on the list
 
+- **Publishing.** Not planned. The provenance pipeline is built and documented
+  under "Releasing" in the README, and the one-time setup is an `NPM_TOKEN`
+  secret the repository does not have. When the work should be usable outside
+  this repo, that is the whole of the job; until then the package stays at
+  0.1.0 and off npm.
 - **The four points.** Closed in `ENGINE.md`, "Calibrated for high school";
   reopen only with a mechanism the evidence supports. `matchups` was the
   candidate and it did not move them, which is the evidence.
