@@ -1,27 +1,30 @@
 # Where the engine goes next
 
-What is open, in the order it should be done, and why that order. Written
-September 2026, after the box-score attribution work closed invariant 15.
+What is open, in the order it should be done, and why that order. First
+written September 2026, after the box-score attribution work closed invariant
+15; brought up to date the same month, after the four items it listed landed.
 `docs/ENGINE.md` is the record of what has been done; this is the record of
-what has not, and it should shrink.
+what has not, and it has shrunk.
 
 ## Where it stands
 
-Twenty-one gates, 373 tests, thirteen of fourteen varsity aggregates in band,
-every point on the scoreboard attributable to a player, and the v1 fixture
-reproducing byte-for-byte. The one aggregate out of band is combined scoring —
-37.7 against ~42 — and `ENGINE.md` closes that thread deliberately: every
-distribution that feeds it is already in band, so moving it means un-pinning
-something that is currently right. Nothing below reopens it as a tuning
-question. One item below may move it as a *consequence*, and that is a
-different thing.
+Twenty-five gates, 419 tests, every varsity aggregate in band, every point on
+the scoreboard attributable to a player, and the v1 fixture reproducing
+byte-for-byte. Combined scoring sits at 37.9 against ~42, and `ENGINE.md`
+closes that thread deliberately: every distribution that feeds it is already in
+band, so moving it means un-pinning something that is currently right.
+Nothing below reopens it as a tuning question. The matchups gate was the one
+item that might have moved it as a consequence; it moved it a tenth of a point,
+which is to say it did not.
 
 Nothing has shipped. `package.json` says 0.1.0 and the package is not on npm.
-The provenance release pipeline is built and has never fired.
+The provenance release pipeline is built and has never fired. CI is green on
+every commit to `main`.
 
 ## What "high fidelity" means here
 
-There are two axes, and one ceiling.
+There are two axes, and the ceiling that used to cap both has been raised
+once.
 
 **Simulation fidelity** is whether the box score could have come from a real
 game. That is what every gate so far has bought, and the instrument is the
@@ -32,87 +35,64 @@ football. The choreographer may invent *how* and never *what* — lanes, routes,
 pursuit angles and who-blocks-whom are invented, everything else comes from
 `PbpSimEvent.spot`.
 
-The ceiling is the same for both: **the engine resolves a play with a handful
-of rolls and picks participants by position weight.** Nobody blocks anybody. No
-receiver is covered by a particular corner — `selectDefender(def, state,
-"coverage")` picks a back by weight *after* the completion has been decided.
-The offensive line is a position group that never touches a play. Ratings feed
-a single team-strength edge, except the kicker, who got a real leg in
-`kickingGame`. The renderer cannot show a corner beaten on a post because the
-engine does not know one was, and the aggregate table cannot find the last
-four points because there is no mechanism underneath the curves for them to
-come from — only the curves.
+The ceiling was that **the engine resolved a play with a handful of rolls and
+picked participants by position weight.** Nobody blocked anybody, no receiver
+was covered by a particular corner, and the offensive line was a position group
+that never touched a play. `matchups` moved that ceiling for the dropback: the
+man in coverage, the pass rusher and his blocker are chosen before the outcome
+and the outcome reads them, and the choreographer draws the three as facts.
+The carry is still resolved the old way — nobody blocks for a run, no
+linebacker fills a particular gap — and that is the next step on both axes if
+one is taken. Not physics, not a per-frame simulation, and not a departure
+from the contract: the engine stays headless, the choreographer stays pure,
+and every new mechanic stays a gate that draws nothing when off.
 
-So the next real step is the same step on both axes. Not physics, not a
-per-frame simulation, and not a departure from the contract: the engine stays
-headless, the choreographer stays pure, and every new mechanic stays a gate
-that draws nothing when off.
+## Done since this was written
+
+In the order it listed them. Each has a section in `ENGINE.md`.
+
+1. **Honest absence for the punt returner** — `puntReturner`. A punt nobody
+   returned names nobody; the returner is still selected so the draw count
+   holds. Six games in 600 diverge with `injuries` on, which are the six
+   injuries that moved to the punter. Invariant 16.
+2. **Individual matchups** — `matchups`. Coverage and pass rush, each read as
+   the difference between two men. A 90 receiver on a 60 corner completes
+   61% and breaks 56% of his catches; the reverse completes 47% and is picked
+   at 7.9%. A balanced roster plays the game it played before. The CLI's
+   reference roster turned out to be rated on listing order, with a secondary
+   nine points below its receivers by accident; it is now rated by position
+   and reproduces the table with the gate off. Invariant 17.
+3. **Two correctness debts** — `sackStats` (reducer-only: a sack is a carry for
+   a loss, not an attempt; box-score completion percentage 46.9% → 52.5%) and
+   `interceptionReturns` (a pick return is a punt return's curve with a lower
+   ceiling; median 7 against a mean of 8.9, longest 26). Invariants 18 and 19.
+4. **The punt on screen.** `puntEvents` reads `returnYards` the way the
+   kickoff's layout does: caught at the gross, returned to the net, a
+   touchdown at the punting team's goal line. No gate.
 
 ## In order
 
-### 1. Honest absence for the punt returner — `docs/TASK-punt-returner-honest-absence.md`
-
-The one known defect. The log names a returner on 43% of punts that nobody
-returned; he is charged a snap and can be the one injured — six players in 600
-games hurt on a play they were not part of. Small, fully specified, and it
-makes "`participants` is the men who played" true, which everything below
-assumes.
-
-### 2. Individual matchups
-
-The fidelity step. Two mechanisms, each its own gate:
-
-- **A target is thrown at a covered man.** On a pass the engine names the
-  receiver first and the defender in coverage on him, and the completion,
-  interception and yards-after-catch read the *difference* between them rather
-  than the team edge. A 90 receiver against a 60 corner is the explosive play;
-  the reverse is the pick.
-- **A dropback is blocked by somebody.** The sack and pressure rate read a
-  pass-rusher against a lineman, which is the first time an offensive
-  lineman's rating is read by anyone.
-
-What it costs and what it must not do. It is RNG-shifting, so it is gated. It
-must keep the aggregate table where it is — the same discipline `kickReturns`
-stated as "field position does not move": a league that turns it on to see
-its corners matter must not silently get a different scoring environment. The
-property to pin is the one `schemes.test.ts` pins for the catalog: a mismatch
-produces more than a match does, in both directions, and the team-level rates
-over a season do not move. If combined scoring moves as a consequence, say so
-and say by how much; do not tune for it.
-
-What it unlocks. A recruiting class spent on a corner shows up in the box
-score. Explosives concentrate on mismatches instead of spreading evenly. And
-the choreographer gets a fact it can draw — *this* man was covering *that* one
-— which is the first visual-fidelity gain that is not invention.
-
-### 3. Two small correctness debts, alongside
-
-- **A sack counts as a pass attempt** (`derive-stats.ts:207-222`). Real,
-  moves completion percentage, reducer-only. Gated the way `returnStats` was,
-  because it replaces a wrong non-zero number under stored logs.
-- **Interception return yardage is `rand() * 20`** (`engine.ts`, in
-  `doPass`). Flat, mean 10, the wrong shape for a pick return — it should look
-  like a punt return with a lower ceiling. RNG-shifting, gated, and the
-  reducer already reads whatever it writes.
-
-### 4. The punt on screen
-
-`puntEvents` in `timeline.ts` still lays a punt out as one net number, even
-when `returnYards` is recorded. The kickoff got the `returnYards`-aware layout
-— catch spot, return, tackle or touchdown — and the punt did not, so a
-punt-return touchdown is drawn as a ball landing in the end zone. Reads the
-log, draws nothing, needs no gate. Renderer work, half a day.
-
-### 5. Publish 0.2.0
+### 1. Publish 0.2.0
 
 Whenever the work should be usable outside this repo. The pipeline is
 documented under "Releasing" in the README; the one-time setup is an
-`NPM_TOKEN` secret. Publishing is outward-facing and gets confirmed first.
+`NPM_TOKEN` secret, which the repository does not yet have. Publishing is
+outward-facing and gets confirmed first.
+
+```bash
+npm version minor && git push --follow-tags
+gh release create v0.2.0 --generate-notes
+```
 
 ## Not on the list
 
 - **The four points.** Closed in `ENGINE.md`, "Calibrated for high school";
-  reopen only with a mechanism the evidence supports.
+  reopen only with a mechanism the evidence supports. `matchups` was the
+  candidate and it did not move them, which is the evidence.
+- **Matchups on the carry.** The natural next mechanic — a back against a
+  linebacker in the gap, a line against a front — and the same shape as the
+  dropback's: gated, RNG-shifting, neutral for a balanced roster. Not listed
+  because nothing measured is wrong without it; list it when something is.
 - **A physics or per-tick simulation.** The engine models outcomes, and the
   renderer's value is that it is honest about that. A ball in flight is a
   drawing convention and stays one.
