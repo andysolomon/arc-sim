@@ -245,8 +245,9 @@ describe("a two-point conversion reaches the box score", () => {
     );
     expect(withTries.length).toBeGreaterThan(30);
     for (const log of withTries) {
+      // A sack is not an attempt under `sackStats`, which these logs carry.
       const thrown = counted(log).filter((p) =>
-        ["pass_complete", "pass_incomplete", "sack", "interception"].includes(p.playType),
+        ["pass_complete", "pass_incomplete", "interception"].includes(p.playType),
       ).length;
       const caught = counted(log).filter((p) => p.playType === "pass_complete").length;
       expect(box(log, "passing", "att")).toBe(thrown);

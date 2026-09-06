@@ -105,10 +105,12 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `quarterBreak` | A quarter ending is not a drive ending: the offense keeps its down |
 | `puntReturner` | A punt nobody returned names no returner, so nobody is charged or hurt for it |
 | `matchups` | A target is thrown at a covered man and a dropback is blocked by somebody: the outcome reads the two men |
+| `sackStats` | A sack is booked as a carry for a loss, not a pass attempt (reducer only) |
+| `interceptionReturns` | A pick return is skewed like a punt return, with a lower ceiling |
 
 ### Presets
 
-Twenty-three gates is a question most callers should not have to answer. Three
+Twenty-five gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -1021,6 +1023,57 @@ two that used to happen afterwards no longer do, so it is RNG-shifting and
 opt-in. Verified inert when off across five gate configurations including
 everything else on, and the v1 fixture regenerates byte-for-byte.
 
+## Two small debts, paid (`sackStats` and `interceptionReturns` gates)
+
+Both found while writing up the box-score attribution work, both real, and
+both small enough to land beside the matchups gate rather than ahead of it.
+
+**A sack is not a pass attempt (`sackStats`, reducer only).** The reducer
+booked a sack as an attempt with the yards lost charged to the passing line —
+so a quarterback sacked twice in eighteen dropbacks read 9 of 18 where the
+sport reads 9 of 16, and completion percentage moved on a play with no ball
+thrown in it. The varsity book (the NCAA statisticians' manual, which the NFHS
+follows) charges a sack as a rushing attempt with the yardage lost and leaves
+the passing line alone. Under the gate that is what `deriveStatLines` does:
+`sacked` still counts it, the passer takes a carry for the loss, and `att`
+counts throws. Over 600 games the box-score completion percentage reads
+**52.5%** against **46.9%** with the sacks in the denominator — the old
+number was five and a half points low, and it was the number a dynasty shows
+on the quarterback's card.
+
+Gated the way `returnStats` was, because it replaces a wrong non-zero number
+that a league may already have published; `logModels(log, "sackStats")` tells
+the two apart, and a stored log with no gates books the old way. The engine
+reads nothing from it — the log is byte-identical apart from recording the
+gate, which the test pins — and `pnpm sim` is unmoved because it counts play
+types rather than stat lines.
+
+**A pick return has a shape (`interceptionReturns`).** `doPass` drew the
+return on an interception as `rand() * 20`: every length from nothing to
+twenty equally likely, mean ten, which gets the average about right and the
+shape entirely wrong. Under the gate it is a punt return's curve with a lower
+ceiling and no floor, because a pick can be made at the sideline or on the
+ground and returned nowhere. One draw either way, so the sequence is unchanged
+until the yardage differs. Over 600 games:
+
+| pick returns | flat | `interceptionReturns` |
+| --- | --- | --- |
+| mean | 10.2 | **8.9** |
+| median / p90 | 10 / 18 | **7 / 22** |
+| longest | 20 | **26** |
+| returned nowhere | 2.3% | **14.9%** |
+| under five yards | 23% | **42%** |
+| fifteen or more | 31% | 28% |
+| mean drive start after a pick | own 58.1 | own 57.1 |
+| combined points | 37.84 | 37.94 |
+
+Most die a few yards from the catch when the pursuit turns, a few reach the
+second level, and one in a while goes — which is what a return looks like.
+The reducer already read `returnYards` into `defense.intYards`, so the box
+score credits the new number without a change. Verified inert when off across
+five gate configurations including `matchups`, and the v1 fixture regenerates
+byte-for-byte.
+
 ## Rendering seam (`timeline` gate)
 
 The engine stays headless. A renderer subscribes to what it produced.
@@ -1185,6 +1238,12 @@ pnpm demo:render   # simulate a game headlessly, then watch it
     and is picked less, a rusher with the lineman beaten gets home more — and
     a roster whose groups are rated alike plays the game it played without
     the gate, within noise. The gate redistributes; it never adds
+18. Under `sackStats`, `passing.att` counts throws and nothing else; a sack
+    is one `sacked` and one carry for the yards lost, the passing line is
+    untouched by it, and the points the box score attributes do not move
+19. Under `interceptionReturns`, a pick return is never longer than 26 yards,
+    zero is a length it can have, the median sits below the mean, and the
+    box-score interception-return total equals the sum the engine simulated
 
 ## No free lunch in the scheme catalog
 

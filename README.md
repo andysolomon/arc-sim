@@ -142,7 +142,10 @@ knowing before you spend an afternoon on it.
 A two-point try is kept out of `att` / `comp` / `rec` / `td` and reported in
 `twoPtAtt` / `twoPtConv`, the way a real box score keeps it: it has no down and
 no distance, so counting it as a pass attempt would move completion percentage
-on a play that is not a scrimmage down.
+on a play that is not a scrimmage down. A sack is kept out of `att` the same
+way under the `sackStats` gate — it is one `sacked` and a carry for the yards
+lost, which is how the varsity book charges it — and booked the old way, as an
+attempt, on a log that does not carry the gate.
 
 Every point on the scoreboard is in here somewhere. `attributedPoints(lines)`
 adds up what the lines account for, and it equals the final score for every game
@@ -160,7 +163,7 @@ attributedPoints(lines.filter((l) => l.teamId === log.homeTeamId)) === log.homeS
 ## Which features to turn on
 
 Every v2 mechanic is a gate, so a league can decline any of them. That is
-twenty-three booleans, and most callers do not want an opinion about all of them:
+twenty-five booleans, and most callers do not want an opinion about all of them:
 
 | preset | what it is |
 | --- | --- |

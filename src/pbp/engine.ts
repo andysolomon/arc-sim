@@ -1793,6 +1793,23 @@ function matchupParticipants(
   return named;
 }
 
+/*
+ * ── Interception returns (`interceptionReturns` gate) ─────────────────────
+ *
+ * Shaped like a punt return and capped lower, because the plays are alike in
+ * the way that matters: a man who catches a ball thrown to somebody else is
+ * standing still with the pursuit already turning, and mostly he gets what
+ * is in front of him before it arrives. No `1 +` floor, unlike the punt's —
+ * a pick can be made at the sideline or on the ground and returned nowhere,
+ * and zero is an honest length for it.
+ */
+const INT_RETURN_SKEW = 2;
+const INT_RETURN_SPAN = 26;
+
+function interceptionReturnDistance(state: GameState): number {
+  return Math.round(Math.pow(state.rand(), INT_RETURN_SKEW) * INT_RETURN_SPAN);
+}
+
 function doPass(state: GameState): void {
   const off = offenseTeam(state);
   const def = defenseTeam(state);
@@ -1892,7 +1909,17 @@ function doPass(state: GameState): void {
   if (state.rand() < intProb) {
     // Under `matchups` the pick belongs to the man who was covering him.
     const interceptor = duel?.cover ?? selectDefender(def, state, "coverage");
-    const returnYards = Math.round(state.rand() * 20);
+    /*
+     * How far he brought it back. v1 drew it flat, `rand() * 20`: every
+     * length from nothing to twenty equally likely, which is the wrong shape
+     * for a pick return — most are a few yards before the pursuit arrives,
+     * a few get to the second level, and one in a while goes. Under
+     * `interceptionReturns` it is a punt return's curve with a lower ceiling.
+     * One draw in either branch, so the sequence is unchanged.
+     */
+    const returnYards = state.features.interceptionReturns
+      ? interceptionReturnDistance(state)
+      : Math.round(state.rand() * 20);
     const play: PbpPlay = {
       playId: state.playId,
       driveId: state.driveId,
@@ -2728,6 +2755,13 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       quarterBreak: input.features?.quarterBreak === true,
       puntReturner: input.features?.puntReturner === true,
       matchups: input.features?.matchups === true,
+      /*
+       * Reducer-only. The engine reads nothing from it; it is resolved here so
+       * the log RECORDS it, which is how `deriveStatLines` knows to book a
+       * sack the way the sport does rather than the way v1 did.
+       */
+      sackStats: input.features?.sackStats === true,
+      interceptionReturns: input.features?.interceptionReturns === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

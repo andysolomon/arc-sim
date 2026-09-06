@@ -98,11 +98,13 @@ function isNegativePlay(play: PbpPlay): boolean {
 /**
  * What the log this play came from is known to model.
  *
- * Only `puntReturns` matters so far, and it matters because the same recorded
- * zero means two different things depending on it — see the punt case below.
+ * `puntReturns` matters because the same recorded zero means two different
+ * things depending on it — see the punt case below. `sackStats` matters
+ * because it decides which line a sack lands on — see the sack case.
  */
 export interface DerivedFrom {
   puntReturns?: boolean;
+  sackStats?: boolean;
 }
 
 export function applyPlay(
@@ -271,9 +273,28 @@ export function applyPlay(
       const sacker = findParticipant(play, "sacker");
       if (passer) {
         const line = getLine(map, passer.playerId);
-        line.passing.att += 1;
         line.passing.sacked += 1;
-        line.passing.yards += play.yardsGained;
+        /*
+         * Which line the sack lands on (`sackStats` gate).
+         *
+         * The sport's book — the NCAA statisticians' manual, which the NFHS
+         * follows — says a quarterback tackled behind the line while trying
+         * to pass is charged a rushing attempt and the yardage lost, and the
+         * passing line is left alone: no ball was thrown, so nothing about
+         * throwing is being measured. v1 booked it as an attempt with the
+         * yards on the passing line, which moved completion percentage on a
+         * play with no pass in it.
+         *
+         * The old booking stands when the log does not carry the gate, so a
+         * league's published completion percentages do not change under it.
+         */
+        if (models.sackStats) {
+          line.rushing.carries += 1;
+          line.rushing.yards += play.yardsGained;
+        } else {
+          line.passing.att += 1;
+          line.passing.yards += play.yardsGained;
+        }
       }
       if (sacker) {
         const line = getLine(map, sacker.playerId);
@@ -436,7 +457,10 @@ export function deriveStatLines(log: PbpGameLog): DerivedPlayerStatLine[] {
   const teamByPlayer = new Map<string, string>();
   // Recorded gates, read as `logModels` reads them: absent or unreadable means
   // the mechanic was not modelled, which is the conservative answer.
-  const models: DerivedFrom = { puntReturns: log.features?.puntReturns === true };
+  const models: DerivedFrom = {
+    puntReturns: log.features?.puntReturns === true,
+    sackStats: log.features?.sackStats === true,
+  };
 
   for (const drive of log.drives) {
     for (const play of drive.plays) {

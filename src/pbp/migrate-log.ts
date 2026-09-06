@@ -160,6 +160,13 @@ const MECHANIC_GATE = {
   // the target, the pass rusher and the man blocking him are not named, and
   // the sacker and the interceptor were chosen after the fact by weight.
   matchups: "matchups",
+  // Without it a sack is booked as a pass attempt with the yards lost on the
+  // passing line, so completion percentage on such a log is a floor and the
+  // quarterback's rushing line is missing his losses.
+  sackStats: "sackStats",
+  // Without it an interception return is a flat draw from nothing to twenty,
+  // so the mean is right and the shape is not: no short returns, no long ones.
+  interceptionReturns: "interceptionReturns",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

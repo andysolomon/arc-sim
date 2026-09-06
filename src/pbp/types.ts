@@ -791,4 +791,37 @@ export interface PbpFeatureGates {
    * that reason, and inert when off.
    */
   matchups?: boolean;
+
+  /**
+   * A sack is not a pass attempt.
+   *
+   * The reducer booked a sack as an attempt with the yards lost charged to
+   * the passing line, which moved completion percentage on a play where no
+   * ball was thrown: a quarterback sacked twice in eighteen dropbacks read
+   * 9 of 18 where the sport reads 9 of 16. The varsity book — the NCAA
+   * statisticians' manual, which the NFHS follows — charges a sack as a
+   * rushing attempt with the yardage lost, and leaves the passing line alone.
+   *
+   * Reducer-only: the engine reads nothing from this gate and the log is
+   * byte-identical apart from recording it. Gated the way `returnStats` was,
+   * because it replaces a wrong non-zero number under stored logs — a league
+   * that has already published a season's completion percentages must opt
+   * into having them change. `logModels(log, "sackStats")` tells the two
+   * apart.
+   */
+  sackStats?: boolean;
+
+  /**
+   * A pick return has a shape.
+   *
+   * v1 drew the return on an interception flat, `rand() * 20` — every length
+   * from nothing to twenty equally likely, mean ten — which is the wrong
+   * shape for a return: most die a few yards from the catch when the pursuit
+   * turns, a few reach the second level. Under this gate the length is a
+   * punt return's curve with a lower ceiling, and zero is a length a pick
+   * can have. One draw either way, so the sequence is unchanged; gated
+   * because it moves where the ball is spotted after a turnover, which is
+   * every play after it. The reducer already reads whatever it writes.
+   */
+  interceptionReturns?: boolean;
 }
