@@ -17,9 +17,9 @@ Nothing below reopens it as a tuning question. The matchups gate was the one
 item that might have moved it as a consequence; it moved it a tenth of a point,
 which is to say it did not.
 
-Nothing has shipped, and nothing is scheduled to. `package.json` says 0.1.0 and the package is not on npm.
-The provenance release pipeline is built and has never fired. CI is green on
-every commit to `main`.
+Nothing has shipped, and nothing is scheduled to. `package.json` says 0.1.0
+and the package is not on npm. The provenance release pipeline is built and
+has never fired. CI is green on every commit to `main`.
 
 ## What "high fidelity" means here
 
