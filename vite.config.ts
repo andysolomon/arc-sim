@@ -9,6 +9,19 @@ import { defineConfig } from "vite";
  */
 export default defineConfig({
   root: "examples/render",
+  /*
+   * `pnpm build:demo` — the same demo as a static site, which is all it needs
+   * to be: the engine does no I/O, so a game is simulated in the visitor's
+   * browser and there is nothing to deploy behind it.
+   *
+   * Out of the tree rather than into `examples/render/dist`, so the demo's
+   * build never sits inside the sources it is built from, and named apart
+   * from `dist/` so it cannot be mistaken for the published package.
+   */
+  build: {
+    outDir: "../../dist-demo",
+    emptyOutDir: true,
+  },
   server: {
     open: true,
     fs: {

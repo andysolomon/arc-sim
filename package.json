@@ -51,6 +51,7 @@
     "test:watch": "vitest",
     "demo": "tsx examples/sim-demo.ts",
     "demo:render": "vite",
+    "build:demo": "vite build",
     "dist-check": "tsx scripts/dist-check.ts",
     "gen:golden": "tsx scripts/gen-v1-golden.ts",
     "verify": "pnpm type-check && pnpm test && pnpm build && pnpm dist-check",
