@@ -152,6 +152,10 @@ const MECHANIC_GATE = {
   // Without it a kicker's rating is read by nobody, and every kick goes in at
   // a professional rate.
   kickingGame: "kickingGame",
+  // Under `puntReturns` alone a named returner may have fair caught it, and a
+  // reader has to check `returnYards` to know. Under this gate the absence of
+  // a returner is itself the record: nobody named means nobody fielded it.
+  puntReturner: "puntReturner",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

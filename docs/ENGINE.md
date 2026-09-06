@@ -103,10 +103,11 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `redZone` | A play that would have ended deep in the end zone is not stopped at the one |
 | `downAndDistance` | The play-caller reads the distance: short is a run, long is a pass |
 | `quarterBreak` | A quarter ending is not a drive ending: the offense keeps its down |
+| `puntReturner` | A punt nobody returned names no returner, so nobody is charged or hurt for it |
 
 ### Presets
 
-Twenty-one gates is a question most callers should not have to answer. Three
+Twenty-two gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -815,8 +816,8 @@ only means the net clamp bit, so reading it as a fair catch would credit an
 event that was never simulated and would move a count underneath logs a league
 has already stored.
 
-**Honest absence in the log is still owed, and it is not free.** The rule the
-kickoff already states —
+**Honest absence in the log was not free, and it was paid separately.** The
+rule the kickoff already states —
 
 > Nobody is the returner on a touchback. v1 named one on every kickoff, which is
 > how a box score came to credit returns that were never made.
@@ -826,15 +827,11 @@ kickoff already states —
 It does not. `applyAttrition` reads `play.participants`: once to charge each man
 a snap, and again as `floor(roll * participants.length)` to choose who got hurt.
 Dropping a name from a punt therefore changes **which player is injured on it**,
-and every play after. Measured over 200 games: with `injuries` off the logs are
-identical, with it on they diverge. The draw count is unchanged, which is what
-makes it invisible to the usual test for a gate that leaks — the sequence does
-not shift, the outcome does.
-
-So the returner keeps taking phantom snaps and absorbing phantom injury risk
-until someone lands that behind its own gate. It is a real defect and a
-different one: an RNG-shifting change to what the engine simulates, not to what
-the box score reads.
+and every play after. The draw count is unchanged, which is what makes it
+invisible to the usual test for a gate that leaks — the sequence does not
+shift, the outcome does. So it went behind its own gate, `puntReturner`, in
+the section that follows; the reducer reads the return rather than the name so
+that it is right on both kinds of log.
 
 **No gate on the rest, and the reason is not that it was convenient.** Every
 field this change added reads `isReturnTd`, `defensivePoints`, a v2 play type or
@@ -849,6 +846,71 @@ Verified over 1,800 games in three preset configurations: every game reconciles
 to the point, on both sides of the ledger; `pnpm sim --games 600` reports the
 same aggregates it did before, field for field; and `pnpm gen:golden` leaves the
 v1 fixture byte-for-byte identical. No game changes.
+
+## Nobody is the returner on a punt nobody returned (`puntReturner` gate)
+
+The one defect the attribution work left behind on purpose. `doPuntWithReturn`
+built the play's `participants` before the fair-catch, touchback and downed
+branches ran, so the log named a returner on every punt. Over 600 games with
+`RECOMMENDED_FEATURES` and the CLI's 25-man roster:
+
+| | over 600 games |
+| --- | --- |
+| punts | 4,439 (7.4 a game) |
+| never returned — fair caught, downed or touched back | **1,962 (44%)** |
+| of those, naming a returner anyway | **1,962 — every one** |
+
+The box score had already stopped counting him, because the reducer reads the
+return rather than the name. The engine had not. `applyAttrition` reads
+`play.participants` twice — once to charge every man a snap, and again as
+`floor(roll * participants.length)` to choose who got hurt — so the top of the
+receiver depth chart was charged about 1.9 stamina a game for punts he stood
+and watched, and took half of every unreturned punt's injury exposure:
+
+| injuries, over 600 games | gate off | `puntReturner` |
+| --- | --- | --- |
+| on a punt | 36 | 36 |
+| on a punt nobody returned | 7 | 7 |
+| …to the returner named on it | **5** | **0** |
+| …to the punter | 2 | 7 |
+
+Five players in 600 games hurt fielding a punt that was touched back or fair
+caught — a thing football cannot produce. Under the gate the array is built
+after the return is known, the way the kickoff's is, and a punt with
+`returnYards === 0` names the punter alone.
+
+**Why it is a gate.** The draw count is unchanged, which is what makes this
+invisible to the usual test for a gate that leaks: the sequence does not shift,
+the outcome does. With one fewer name the same `whoRoll` lands on the punter,
+who has a different stamina, so the same `whetherRoll` can go the other way —
+and from there every later play is different. Measured over the same 600
+seeds with `participants` stripped from both logs before comparing: with
+`injuries` off, **0** games diverge; with it on, **6** — the ones where the
+victim moved. A league with stored logs and `injuries` on would find a
+receiver's injury history rewritten underneath it.
+
+**What it must not do.** The returner is still *selected* on every punt,
+because `selectPlayer` draws, and skipping the selection on a punt nobody
+returned would save a draw and turn a change that touches six games in 600
+into one that touches all of them. The gate changes what the play records and
+never how much randomness the punt spends — invariant 13's discipline, applied
+to a participant list. Pinned by stripping `participants` and deep-comparing
+gate-on to gate-off over a thousand games with `injuries` off: identical.
+
+**Who takes the roll now.** With one name on the play the punter takes all of
+an unreturned punt's injury exposure at `contactFactor("punt")`, which
+over-exposes a man who kicked and jogged off — the kickoff has the same
+asymmetry on a touchback and accepted it. Punter injuries on unreturned punts
+go from 2 to 7 per 600 games, one every eighty-five. If that ever looks wrong
+the fix is to `contactFactor` on a non-contact punt, and it is a separate
+change because it removes three draws.
+
+The aggregate table does not move: carries 34.50 → 34.50 (which prints as 35
+or 34 depending on the third decimal), completion 52.9% both ways, combined
+points 37.70 → 37.72. `logModels(log, "puntReturner")` is how a reader knows
+that an absent returner means nobody fielded it, rather than a log that names
+one on every punt. Verified inert when off across five gate configurations
+including everything else on, and the v1 fixture regenerates byte-for-byte.
 
 ## Rendering seam (`timeline` gate)
 
@@ -1006,6 +1068,9 @@ pnpm demo:render   # simulate a game headlessly, then watch it
     for each team, not only in total. Invariants 2 and 3 stop at the play level;
     this one is the same promise carried through to the derived stats, and it is
     the assertion that catches a scoring play the reducer forgot to read
+16. Under `puntReturner`, `returnYards === 0` on a punt means nobody is named
+    the returner, no snap is charged to him and no injury can reach him — the
+    promise invariant 10 already makes for the kickoff
 
 ## No free lunch in the scheme catalog
 
@@ -1065,11 +1130,6 @@ check that nothing moved.
 
 ## What was left behind (on purpose)
 
-- **Honest absence for the punt returner in the log itself.** The reducer no
-  longer counts a return that was not returned, but the play still names a man
-  who fair caught it, and `applyAttrition` charges him a snap and lets him be
-  the one injured. Fixing it changes outcomes under `injuries` (see the
-  attribution section above), so it needs its own gate.
 - Convex persistence (`gamePlayLogs`, injuries, rivalries tables)
 - Gamecast / schedule UI
 - Dynasty progression, recruiting, offseason

@@ -348,19 +348,39 @@ describe("a punt nobody returned is not a return", () => {
 
   it("credits nobody on a fair catch, a touchback or a downed ball", () => {
     /*
-     * The log still names a returner on all of them, which is the shape this
-     * repo would rather not have — but `applyAttrition` reads
-     * `play.participants` for snap cost and to pick who got hurt, so taking a
-     * name off a punt changes which player is injured on it and every play
-     * after. That is an RNG-shifting change and it is not this one, so the
-     * reducer reads the return the engine recorded instead.
+     * Without `puntReturner` the log names a returner on all of them — the
+     * shape this repo would rather not have, and the reason the reducer reads
+     * the return rather than the name. Kept as an assertion about gate-off
+     * logs because it is what documents that the count never depended on the
+     * name: the reducer is right on a log that names a phantom and on one
+     * that does not.
      */
-    const namedOnEveryPunt = LOGS.slice(0, 400).every((log) =>
+    const named = games(
+      { ...RECOMMENDED_FEATURES, puntReturner: false },
+      { count: 200, label: "named-returner" },
+    );
+    const namedOnEveryPunt = named.every((log) =>
       counted(log)
         .filter((p) => p.playType === "punt")
         .every((p) => p.participants.some((x) => x.role === "returner")),
     );
     expect(namedOnEveryPunt).toBe(true);
+    for (const log of named) {
+      const returned = counted(log).filter(
+        (p) => p.playType === "punt" && (p.returnYards ?? 0) > 0,
+      ).length;
+      expect(box(log, "returns", "prCount")).toBe(returned);
+    }
+
+    // And the mirror, under the gate: the name follows the return too, so a
+    // returner is named exactly when there was a return to credit.
+    for (const log of LOGS.slice(0, 400)) {
+      for (const p of counted(log).filter((p) => p.playType === "punt")) {
+        expect(p.participants.some((x) => x.role === "returner")).toBe(
+          (p.returnYards ?? 0) > 0,
+        );
+      }
+    }
 
     // A game whose punts were ALL fair caught, downed or touched back credits
     // no returner at all — the count follows the return, not the name.

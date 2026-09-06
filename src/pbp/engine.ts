@@ -1352,11 +1352,6 @@ function doPuntWithReturn(
   returner: PlayerSimProfile,
   gross: number,
 ): void {
-  const participants: PbpParticipant[] = [
-    participant(punter, off.teamId, "kicker"),
-    participant(returner, def.teamId, "returner"),
-  ];
-
   /*
    * Where the ball comes down, in the RECEIVING team's frame — their own yard
    * line. Everything after the kick is easier to reason about from that side,
@@ -1381,6 +1376,34 @@ function doPuntWithReturn(
 
   const startSpot = touchback ? 20 : catchSpot + returned;
   const isReturnTd = startSpot >= 100;
+
+  /*
+   * Nobody is the returner on a punt nobody returned (`puntReturner` gate).
+   *
+   * The kickoff already says so: a touchback names no returner. This array
+   * used to be built before the fair-catch, touchback and downed branches ran,
+   * so 43% of punts named a man who stood and watched — or, on a touchback,
+   * was not on the field — and `applyAttrition` then charged him a snap and
+   * let him be the one hurt. Six players in 600 games injured on a play they
+   * were not part of.
+   *
+   * Gated, and the reason is not the draw count: it is unchanged. The victim
+   * of an injury is `participants[floor(roll * length)]`, so one fewer name
+   * lands the same roll on the punter instead, and from there the log
+   * diverges. A league with stored logs and `injuries` on would find an
+   * injury history rewritten underneath it.
+   *
+   * The returner is still SELECTED above whether or not he is written down —
+   * `selectPlayer` draws, and skipping it on an unreturned punt would shift
+   * every play after. The gate changes what the play records, never how much
+   * randomness the punt spends.
+   */
+  const participants: PbpParticipant[] = [
+    participant(punter, off.teamId, "kicker"),
+    ...(returned > 0 || !state.features.puntReturner
+      ? [participant(returner, def.teamId, "returner")]
+      : []),
+  ];
 
   const play: PbpPlay = {
     playId: state.playId,
@@ -2532,6 +2555,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       redZone: input.features?.redZone === true,
       downAndDistance: input.features?.downAndDistance === true,
       quarterBreak: input.features?.quarterBreak === true,
+      puntReturner: input.features?.puntReturner === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

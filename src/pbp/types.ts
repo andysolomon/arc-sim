@@ -714,4 +714,31 @@ export interface PbpFeatureGates {
    * field position changing, and every varsity aggregate stays in band.
    */
   quarterBreak?: boolean;
+
+  /**
+   * Nobody is the returner on a punt nobody returned.
+   *
+   * `puntReturns` decides whether a punt was fair caught, touched back or
+   * downed, and `doPuntWithReturn` built the play's `participants` before
+   * that decision ran — so 43% of punts named a returner who never touched
+   * the ball, and on a touchback was not on the field. The box score stopped
+   * counting him (the reducer reads the return, not the name), but the log
+   * still recorded him and `applyAttrition` still read the record: a snap
+   * charged to a team's best receiver for standing and watching, and half of
+   * every unreturned punt's injury exposure. Six players in 600 games were
+   * hurt on a play they were not part of.
+   *
+   * Under this gate a punt with `returnYards === 0` names no returner — the
+   * rule the kickoff already states for a touchback (invariant 10), made
+   * true for the punt (invariant 16). The returner is still selected, because
+   * selecting him draws, so the gate spends exactly the randomness it spent
+   * before; it changes what is written down and nothing else.
+   *
+   * Gated anyway, because with `injuries` on it changes WHO is hurt. The
+   * victim is chosen by `floor(roll * participants.length)`, so one fewer
+   * name puts the same roll on the punter, and from there the game diverges.
+   * With `injuries` off the logs are identical once `participants` is
+   * stripped. Only reachable under `puntReturns`; inert without it.
+   */
+  puntReturner?: boolean;
 }

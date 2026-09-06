@@ -156,13 +156,16 @@ export function applyPlay(
        * yardage was always right; the denominator was counting men who stood
        * and watched.
        *
-       * Read here rather than fixed in the engine, and that is not a shortcut.
-       * `applyAttrition` reads `play.participants` — for snap cost, and for
-       * `floor(roll * participants.length)` to pick who got hurt — so removing
-       * a name from a punt changes which player is injured on it and every play
-       * after. Measured: identical logs with `injuries` off, divergent with it
-       * on. Honest absence in the log is the better shape and is still owed;
-       * it is an RNG-shifting change and belongs behind its own gate.
+       * Read here rather than only fixed in the engine, and that is not a
+       * shortcut. `applyAttrition` reads `play.participants` — for snap cost,
+       * and for `floor(roll * participants.length)` to pick who got hurt — so
+       * removing a name from a punt changes which player is injured on it and
+       * every play after. Honest absence in the log is the better shape and it
+       * is now paid, behind the `puntReturner` gate in `doPuntWithReturn`:
+       * under it an unreturned punt names no returner at all. This reducer
+       * reads the return rather than the name so that it is right on BOTH
+       * kinds of log, which is also what lets `namedOnEveryPunt` in the
+       * attribution test document that the count never depended on the name.
        *
        * Gated on `puntReturns` because the recorded zero means two different
        * things. Under it, zero is a fair catch, a touchback or a ball downed in
