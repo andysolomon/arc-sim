@@ -258,6 +258,8 @@ scripts/
   gen-v1-golden.ts  regenerates the v1 parity fixture
 docs/
   ENGINE.md         architecture deep-dive
+  ROADMAP.md        what is open, in order, and why that order
+  TASK-*.md         specifications for the next pieces of work
 ```
 
 `src/render` is the only place Three.js may be imported, and only in the two
