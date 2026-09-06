@@ -203,12 +203,20 @@ a log stored years ago can be laid out on read. See
 
 ## Watching it
 
+**[arc-sim-six.vercel.app](https://arc-sim-six.vercel.app)** — a game, simulated
+in the browser and played back. Every visit is a different seed; reload for
+another.
+
 `@arc-sim/core/render` turns a log into a Three.js broadcast. It is a separate
 entry point: importing the engine never pulls in Three.
 
 ```bash
 pnpm demo:render   # simulate a game headlessly, then watch it play out
+pnpm build:demo    # the same page as a static site, into dist-demo/
 ```
+
+Nothing runs on a server: the engine does no I/O, so the whole game is decided
+in the visitor's tab before the first frame is drawn.
 
 ```ts
 import { FootballScene, choreographLog } from "@arc-sim/core/render";
