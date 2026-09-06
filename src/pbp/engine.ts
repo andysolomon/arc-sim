@@ -7,6 +7,7 @@ import {
 import { acceptOrDecline, meanAwareness, rollPenalty } from "./penalties.js";
 import {
   chargeSnap,
+  effectiveOverall,
   snapCost,
   staminaDecay,
   staminaFor,
@@ -89,6 +90,16 @@ const POSITION_TO_GROUP: Record<string, SimPositionGroup> = {
   FB: "RB",
   WR: "WR",
   TE: "TE",
+  OL: "OL",
+  OT: "OL",
+  OG: "OL",
+  C: "OL",
+  G: "OL",
+  T: "OL",
+  LT: "OL",
+  LG: "OL",
+  RG: "OL",
+  RT: "OL",
   DE: "DL",
   DT: "DL",
   NT: "DL",
@@ -402,6 +413,22 @@ function playersInGroup(
     });
 }
 
+/**
+ * Stand-ins for a position group the roster does not carry.
+ *
+ * `selectPlayer` has always invented a 50-overall nobody when a group is
+ * empty, so a roster with no punter still punts. The `matchups` gate is the
+ * first thing to READ a selected player's rating against another's, and a
+ * stand-in must not be read: a roster with no offensive line has not fielded
+ * a bad one, it has said nothing, and the matchup is neutral. Tracked here
+ * rather than by a marker field, so the stand-in stays a plain profile.
+ */
+const PLACEHOLDERS = new WeakSet<PlayerSimProfile>();
+
+function isPlaceholder(player: PlayerSimProfile): boolean {
+  return PLACEHOLDERS.has(player);
+}
+
 /*
  * Takes the whole `state`, not just `rand` (A4).
  *
@@ -419,11 +446,13 @@ function selectPlayer(
   const rand = state.rand;
   const candidates = playersInGroup(team, group, state.unavailable);
   if (candidates.length === 0) {
-    return {
+    const stand = {
       playerId: `${team.teamId}-unknown-${group}`,
       position: group,
       overall: BASELINE_STRENGTH,
     };
+    PLACEHOLDERS.add(stand);
+    return stand;
   }
   if (distribute && candidates.length > 1) {
     return weightedPick(candidates.slice(0, Math.min(4, candidates.length)), rand);
@@ -1655,6 +1684,115 @@ function doRush(state: GameState): void {
   applyPlayResult(state, yards, isScoring, points, isTurnover, play);
 }
 
+/*
+ * ── Individual matchups (`matchups` gate) ──────────────────────────────────
+ *
+ * The engine resolves a pass with a handful of rolls against the team edge
+ * and picks participants by position weight afterwards. The interceptor is
+ * chosen after the interception has been decided; the sacker after the sack.
+ * Nobody blocks anybody, no receiver is covered by a particular corner, and
+ * no rating on the field is read by anything except the kicker's leg. A 90
+ * receiver against a 60 corner completed passes at exactly the rate the
+ * reverse did.
+ *
+ * Under the gate the three men who decide a dropback are selected BEFORE the
+ * outcome — the man in coverage on the target, the pass rusher, and the
+ * lineman blocking him — and the outcome reads the difference between them.
+ * Every term is linear and centred on zero, so a matchup of equals plays the
+ * game the team edge already priced, and only a mismatch moves anything.
+ */
+
+/** Rating points between two men that count as a full mismatch. */
+const MATCHUP_SCALE = 30;
+/** A full mismatch in coverage moves the completion rate this much. */
+const COVER_COMPLETION_SWING = 0.08;
+/** ...and multiplies the explosive rate by up to this much either way. */
+const COVER_EXPLOSIVE_SWING = 0.5;
+/** ...and the interception rate, the other way. */
+const COVER_PICK_SWING = 0.4;
+/** ...and adds this many yards after the catch on an ordinary completion. */
+const COVER_YAC_YARDS = 3;
+/** A full mismatch at the line multiplies the sack rate by up to this much. */
+const RUSH_SACK_SWING = 0.5;
+
+interface PassMatchups {
+  cover: PlayerSimProfile;
+  rusher: PlayerSimProfile;
+  blocker: PlayerSimProfile;
+  /** Signed for the receiver: positive when he has the corner beaten. */
+  coverage: number;
+  /** Signed for the rusher: positive when he has the lineman beaten. */
+  rush: number;
+}
+
+/**
+ * The rating the matchup reads. Under `injuries` it is the fatigued one, so
+ * a corner who has been on the field all night gets beaten — the link that
+ * makes riding a starter cost something on the field rather than only in
+ * the substitution logic. Draws nothing.
+ */
+function matchupRating(state: GameState, player: PlayerSimProfile): number {
+  return state.features.injuries
+    ? effectiveOverall(player.overall, staminaFor(state.snaps, player))
+    : player.overall;
+}
+
+/**
+ * How badly `a` has `b` beaten, in [-1, 1].
+ *
+ * Zero when either is a stand-in for a group the roster does not carry: a
+ * roster with no offensive line has not fielded a bad one, it has said
+ * nothing, and the matchup must not read a 50 it invented.
+ */
+function matchup(
+  state: GameState,
+  a: PlayerSimProfile,
+  b: PlayerSimProfile,
+): number {
+  if (isPlaceholder(a) || isPlaceholder(b)) return 0;
+  return clamp(
+    (matchupRating(state, a) - matchupRating(state, b)) / MATCHUP_SCALE,
+    -1,
+    1,
+  );
+}
+
+/**
+ * Who is on whom for this dropback. Three selections, every one a draw the
+ * gate-off engine does not make, which is why the gate is RNG-shifting.
+ */
+function passMatchups(
+  state: GameState,
+  off: TeamSimProfile,
+  def: TeamSimProfile,
+  receiver: PlayerSimProfile,
+): PassMatchups {
+  const cover = selectDefender(def, state, "coverage");
+  const rusher = selectDefender(def, state, "sack");
+  const blocker = selectPlayer(off, "OL", state, true);
+  return {
+    cover,
+    rusher,
+    blocker,
+    coverage: matchup(state, receiver, cover),
+    rush: matchup(state, rusher, blocker),
+  };
+}
+
+/** The matchup men, named on the play — stand-ins excepted, as nobody was there. */
+function matchupParticipants(
+  duel: PassMatchups | null,
+  def: TeamSimProfile,
+  off: TeamSimProfile,
+): PbpParticipant[] {
+  if (!duel) return [];
+  const named: PbpParticipant[] = [];
+  if (!isPlaceholder(duel.cover)) named.push(participant(duel.cover, def.teamId, "coverage"));
+  if (!isPlaceholder(duel.rusher)) named.push(participant(duel.rusher, def.teamId, "pass_rusher"));
+  if (!isPlaceholder(duel.blocker)) named.push(participant(duel.blocker, off.teamId, "blocker"));
+  return named;
+}
+
 function doPass(state: GameState): void {
   const off = offenseTeam(state);
   const def = defenseTeam(state);
@@ -1662,6 +1800,16 @@ function doPass(state: GameState): void {
   const receiver = selectPlayer(off, "WR", state, true);
   const edge = matchupEdge(state);
   const scheme = schemeMods(state);
+  /*
+   * Who is on whom, decided before anything else is (`matchups` gate). Null
+   * with the gate off, and every read below then falls back to the team edge
+   * alone — the arithmetic is `+ 0` and `* 1`, exact in floating point, so
+   * the gate-off path is bit-identical without a branch at each site.
+   */
+  const duel = state.features.matchups ? passMatchups(state, off, def, receiver) : null;
+  const coverage = duel?.coverage ?? 0;
+  const rush = duel?.rush ?? 0;
+  const matchupMen = matchupParticipants(duel, def, off);
   /*
    * A varsity dropback is more dangerous than a professional one, in both
    * directions. The 7% sack rate and 2.5% interception rate here are NFL
@@ -1677,14 +1825,21 @@ function doPass(state: GameState): void {
   const sackProb =
     (state.features.passingGame
       ? clamp(0.105 - edge * 0.04, 0.05, 0.17)
-      : clamp(0.07 - edge * 0.03, 0.03, 0.12)) * scheme.sackRate;
+      : clamp(0.07 - edge * 0.03, 0.03, 0.12)) *
+    scheme.sackRate *
+    // The rusher against the man blocking him (`matchups`).
+    (1 + rush * RUSH_SACK_SWING);
   const intProb =
     (state.features.passingGame
       ? clamp(0.058 - edge * 0.022, 0.02, 0.095)
-      : clamp(0.025 - edge * 0.01, 0.008, 0.04)) * scheme.interceptionRate;
+      : clamp(0.025 - edge * 0.01, 0.008, 0.04)) *
+    scheme.interceptionRate *
+    // A receiver with the corner beaten is not the one throwing it to him.
+    (1 - coverage * COVER_PICK_SWING);
 
   if (state.rand() < sackProb) {
-    const sacker = selectDefender(def, state, "sack");
+    // Under `matchups` the sack belongs to the man who was coming.
+    const sacker = duel?.rusher ?? selectDefender(def, state, "sack");
     const yards = -Math.round(3 + state.rand() * 6);
     const play: PbpPlay = {
       playId: state.playId,
@@ -1704,6 +1859,7 @@ function doPass(state: GameState): void {
       participants: [
         participant(passer, off.teamId, "passer"),
         participant(sacker, def.teamId, "sacker"),
+        ...matchupMen,
       ],
     };
 
@@ -1734,7 +1890,8 @@ function doPass(state: GameState): void {
   }
 
   if (state.rand() < intProb) {
-    const interceptor = selectDefender(def, state, "coverage");
+    // Under `matchups` the pick belongs to the man who was covering him.
+    const interceptor = duel?.cover ?? selectDefender(def, state, "coverage");
     const returnYards = Math.round(state.rand() * 20);
     const play: PbpPlay = {
       playId: state.playId,
@@ -1755,6 +1912,7 @@ function doPass(state: GameState): void {
         participant(passer, off.teamId, "passer"),
         participant(receiver, off.teamId, "receiver"),
         participant(interceptor, def.teamId, "interceptor"),
+        ...matchupMen,
       ],
     };
     /*
@@ -1803,18 +1961,22 @@ function doPass(state: GameState): void {
    */
   const completeProb =
     (state.features.passingGame
-      ? clamp(0.575 + edge * 0.14, 0.43, 0.77)
-      : clamp(0.6 + edge * 0.14, 0.45, 0.8)) *
+      ? clamp(0.575 + edge * 0.14 + coverage * COVER_COMPLETION_SWING, 0.43, 0.77)
+      : clamp(0.6 + edge * 0.14 + coverage * COVER_COMPLETION_SWING, 0.45, 0.8)) *
     state.weatherMods.passAccuracy *
     scheme.passAccuracy;
   const complete = state.rand() < completeProb;
   if (!complete) {
-    const pd = state.rand() < 0.12 ? selectDefender(def, state, "coverage") : null;
+    // A ball broken up was broken up by the man in coverage (`matchups`); the
+    // one-in-eight that is a breakup rather than a miss is the roll it was.
+    const pd =
+      state.rand() < 0.12 ? (duel?.cover ?? selectDefender(def, state, "coverage")) : null;
     const participants: PbpParticipant[] = [
       participant(passer, off.teamId, "passer"),
       participant(receiver, off.teamId, "receiver"),
     ];
     if (pd) participants.push(participant(pd, def.teamId, "pass_defender"));
+    participants.push(...matchupMen);
     const play: PbpPlay = {
       playId: state.playId,
       driveId: state.driveId,
@@ -1842,7 +2004,9 @@ function doPass(state: GameState): void {
     state.rand() <
     (state.features.passingGame ? 0.17 : 0.1) * (1 + edge * 0.6) *
       state.weatherMods.explosiveRate *
-      scheme.explosiveRate;
+      scheme.explosiveRate *
+      // The explosive play is the mismatch, not the average (`matchups`).
+      (1 + coverage * COVER_EXPLOSIVE_SWING);
   /*
    * A high-school completion travels further than a professional one.
    *
@@ -1855,7 +2019,13 @@ function doPass(state: GameState): void {
    */
   let yards = explosive
     ? Math.round(15 + state.rand() * 25)
-    : Math.round(4 + state.rand() * (state.features.passingGame ? 15 : 9) + edge * 5);
+    : Math.round(
+        4 +
+          state.rand() * (state.features.passingGame ? 15 : 9) +
+          edge * 5 +
+          // Yards after the catch belong to the man who beat his corner.
+          coverage * COVER_YAC_YARDS,
+      );
   let isScoring = false;
   let points = 0;
   const participants: PbpParticipant[] = [
@@ -1869,6 +2039,7 @@ function doPass(state: GameState): void {
       participant(selectDefender(def, state, "tackle"), def.teamId, "tackler_ast"),
     );
   }
+  participants.push(...matchupMen);
 
   if (state.fieldPosition + yards >= 100) {
     /*
@@ -2556,6 +2727,7 @@ function simulateGameLog(input: PbpGameInput): PbpGameLog {
       downAndDistance: input.features?.downAndDistance === true,
       quarterBreak: input.features?.quarterBreak === true,
       puntReturner: input.features?.puntReturner === true,
+      matchups: input.features?.matchups === true,
     },
     snaps: new Map(),
     unavailable: new Set(),

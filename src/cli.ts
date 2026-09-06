@@ -167,9 +167,19 @@ function parse(argv: readonly string[]): Args {
  * A roster good enough to play a game.
  *
  * The engine casts by position and falls back to the best available, so this is
- * the shape of a depth chart rather than a real one. Ratings step down from the
- * team rating so that a stronger team is stronger everywhere, which is what
- * `--home-rating` is expected to mean.
+ * the shape of a depth chart rather than a real one. Every starter is rated at
+ * the team rating and each man behind him three lower, so that a stronger team
+ * is stronger everywhere — which is what `--home-rating` is expected to mean —
+ * and, as importantly, so that it is stronger everywhere EQUALLY.
+ *
+ * It used to slope by listing order, a little lower for every man further down
+ * the list. That put the secondary, listed after the receivers, about nine
+ * points below them: an accident of the order the positions were typed in,
+ * invisible for as long as no rating on the field was read against another.
+ * `matchups` reads exactly that, and on the sloped roster it found a mismatch
+ * nobody had meant and threw for 145 yards a game against it. The reference
+ * table in `docs/ENGINE.md` is measured on this roster, so it has to describe
+ * the team it claims to — a 72 everywhere, not a 72 that fades to a 55.
  */
 function roster(teamId: string, rating: number): TeamSimProfile {
   const positions = [
@@ -181,19 +191,18 @@ function roster(teamId: string, rating: number): TeamSimProfile {
     teamId,
     strength: rating,
     discipline: rating,
-    players: positions.map((position, i) => {
+    players: positions.map((position) => {
       const depth = (seen.get(position) ?? 0) + 1;
       seen.set(position, depth);
       return {
         playerId: `${teamId}-${position.toLowerCase()}${depth}`,
         position,
         depthRank: depth,
-        // Specialists sit last in the list only because they do, so they do
-        // not pay the slope the skill positions earn by listing order.
+        // Specialists a touch below the team, as a varsity kicker usually is.
         overall:
           position === "K" || position === "P"
             ? rating - 5
-            : Math.max(40, Math.round(rating - i * 0.6 - (depth - 1) * 3)),
+            : Math.max(40, rating - (depth - 1) * 3),
       };
     }),
   };

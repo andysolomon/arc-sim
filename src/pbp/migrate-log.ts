@@ -156,6 +156,10 @@ const MECHANIC_GATE = {
   // reader has to check `returnYards` to know. Under this gate the absence of
   // a returner is itself the record: nobody named means nobody fielded it.
   puntReturner: "puntReturner",
+  // Without it no rating on the field is read on a dropback: the corner on
+  // the target, the pass rusher and the man blocking him are not named, and
+  // the sacker and the interceptor were chosen after the fact by weight.
+  matchups: "matchups",
 } as const satisfies Record<string, keyof PbpFeatureGates>;
 
 export type LogMechanic = keyof typeof MECHANIC_GATE;

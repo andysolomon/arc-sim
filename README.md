@@ -160,7 +160,7 @@ attributedPoints(lines.filter((l) => l.teamId === log.homeTeamId)) === log.homeS
 ## Which features to turn on
 
 Every v2 mechanic is a gate, so a league can decline any of them. That is
-twenty-two booleans, and most callers do not want an opinion about all of them:
+twenty-three booleans, and most callers do not want an opinion about all of them:
 
 | preset | what it is |
 | --- | --- |

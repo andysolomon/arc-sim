@@ -30,6 +30,7 @@ function team(id: string, strength: number): TeamSimProfile {
       p("rb", "RB", strength - 2),
       p("wr", "WR", strength - 1),
       p("te", "TE", strength - 4),
+      p("lt", "OL", strength - 3),
       p("de", "DE", strength - 3),
       p("lb", "LB", strength - 2),
       p("cb", "CB", strength - 2),
@@ -59,6 +60,9 @@ function game(label: string, timeline = true): PbpGameLog {
        * without this gate the sweep below never draws either of them.
        */
       kickReturns: true,
+      // On, so the sweep draws a dropback with the corner, the rusher and the
+      // blocker the engine named — three bodies whose motion is a fact.
+      matchups: true,
       timeline,
     },
   });
@@ -238,7 +242,12 @@ describe("choreograph", () => {
       const cast = new Set(
         animation.tracks.map((t) => t.playerId).filter((id): id is string => !!id),
       );
-      for (const role of ["passer", "rusher", "kicker", "returner"] as const) {
+      for (const role of [
+        "passer", "rusher", "kicker", "returner",
+        // The matchup men too: the corner the engine put on the target, the
+        // rusher and his blocker, so the picture agrees with the play.
+        "coverage", "pass_rusher", "blocker",
+      ] as const) {
         const named = play.participants.find((p) => p.role === role)?.playerId;
         if (named) expect(cast.has(named)).toBe(true);
       }

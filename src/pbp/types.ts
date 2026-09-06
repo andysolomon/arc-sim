@@ -4,6 +4,8 @@ export type SimPositionGroup =
   | "RB"
   | "WR"
   | "TE"
+  /** Read only under `matchups`: the man a pass rusher has to beat. */
+  | "OL"
   | "DL"
   | "LB"
   | "DB"
@@ -162,7 +164,19 @@ export type PbpParticipantRole =
   | "interceptor"
   | "pass_defender"
   | "fumbler"
-  | "recoverer";
+  | "recoverer"
+  /*
+   * The matchup roles (`matchups` gate), named on every dropback BEFORE the
+   * outcome: who was covering the target, who was coming, and who had to
+   * block him. A man can carry one of these and an outcome role on the same
+   * play — the cover man who made the pick is both `coverage` and
+   * `interceptor` — which is the convention `fumbler` and `rusher` already
+   * follow. The reducer credits none of the three: they say who played, not
+   * what he did.
+   */
+  | "coverage"
+  | "pass_rusher"
+  | "blocker";
 
 export interface PbpParticipant {
   playerId: string;
@@ -741,4 +755,40 @@ export interface PbpFeatureGates {
    * stripped. Only reachable under `puntReturns`; inert without it.
    */
   puntReturner?: boolean;
+
+  /**
+   * Individual matchups: a target is thrown at a covered man, and a dropback
+   * is blocked by somebody.
+   *
+   * The engine resolved a pass with a handful of rolls against the team edge
+   * and picked participants by position weight afterwards — the interceptor
+   * was chosen after the interception had been decided, and no rating on the
+   * field was read by anything except the kicker's leg. A 90 receiver against
+   * a 60 corner completed passes at exactly the rate a 60 against a 90 did,
+   * and the offensive line was a position group that never touched a play.
+   *
+   * Under this gate the man in coverage on the receiver, the pass rusher and
+   * the lineman blocking him are selected BEFORE the outcome, and the
+   * completion, the interception, the explosive rate, the yards after the
+   * catch and the sack rate each read the DIFFERENCE between the two men
+   * rather than the team edge alone: a mismatch of thirty rating points is a
+   * full swing. Under `injuries` the rating read is the fatigued one, so a
+   * corner who has been on the field all night gets beaten. The three are
+   * named on the play as `coverage`, `pass_rusher` and `blocker`, and the
+   * sacker and the interceptor are the men who were already there rather
+   * than fresh draws.
+   *
+   * It carries no scoring lever. The swing is linear and centred on zero, so
+   * a roster whose receivers and corners are rated alike plays exactly the
+   * game it played before, within noise; a roster that is not balanced gets
+   * the game its talent implies, which is the point. The CLI's reference
+   * roster was rated on listing order and had a secondary nine points below
+   * its receivers by accident — see `roster()` in `cli.ts` — and is now
+   * rated by position so the aggregate table stays what it was.
+   *
+   * RNG-shifting: three selections happen on every dropback that did not
+   * before, and two that used to happen afterwards no longer do. Gated for
+   * that reason, and inert when off.
+   */
+  matchups?: boolean;
 }

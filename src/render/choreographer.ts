@@ -1,7 +1,7 @@
 import type { PbpGameLog, PbpParticipantRole, PbpPlay } from "../pbp/types.js";
 import type { PbpSimEvent } from "../pbp/timeline.js";
 import { playTimeline } from "../pbp/timeline.js";
-import { driveDirection, fieldPoint, UPRIGHT_DEPTH } from "./field.js";
+import { driveDirection, fieldPoint, FIELD_LENGTH, UPRIGHT_DEPTH } from "./field.js";
 import {
   DEFENSE_FORMATIONS,
   OFFENSE_FORMATIONS,
@@ -357,6 +357,16 @@ function assignParticipants(c: Choreography): void {
   claim("kicker", [c.find(c.offense, "K"), c.find(c.offense, "P")]);
   claim("receiver", [targetSlot(c), ...receiverSlots(c)]);
   claim("returner", [c.find(c.defense, "RET")]);
+  /*
+   * The matchup roles go first among the defenders (`matchups` gate), because
+   * the outcome roles are usually the same men: the interceptor IS the man in
+   * coverage, the sacker IS the man who was coming. Casting the matchup first
+   * puts the body where the matchup says it was, and the outcome role then
+   * finds that body already on the field — one body per player, as always.
+   */
+  claim("coverage", [...coverageSlots(c)]);
+  claim("pass_rusher", [...rushSlots(c)]);
+  claim("blocker", [...lineSlots(c)]);
   claim("sacker", [...rushSlots(c)]);
   claim("interceptor", [...coverageSlots(c)]);
   claim("pass_defender", [...coverageSlots(c)]);
@@ -388,6 +398,20 @@ function rushSlots(c: Choreography): Slot[] {
     .filter((s): s is Slot => s !== undefined);
   const start = Math.floor(hash01(c.play.playId, 2) * Math.max(1, rushers.length));
   return [...rushers.slice(start), ...rushers.slice(0, start)];
+}
+
+/**
+ * The offensive line, nearest the pass rusher first.
+ *
+ * Read after `pass_rusher` is cast, so the man named as the blocker lines up
+ * across from the man he has to block rather than wherever a hash put him.
+ */
+function lineSlots(c: Choreography): Slot[] {
+  const rusher = c.cast.get("pass_rusher");
+  const lane = rusher?.base.lateral ?? 0;
+  return c.offense
+    .filter((s) => /^(LT|LG|C|RG|RT)$/.test(s.spec.label))
+    .sort((a, b) => Math.abs(a.base.lateral - lane) - Math.abs(b.base.lateral - lane));
 }
 
 /** Defensive backs, nearest the target first. */
@@ -757,9 +781,27 @@ function fillAmbientMotion(c: Choreography, duration: number): void {
   const lane = endLane(c);
   const finalSpot = ballFinalSpot(c);
 
+  const rusher = c.cast.get("pass_rusher");
+  const blocker = c.cast.get("blocker");
+  const cover = c.cast.get("coverage");
+
   for (const slot of c.offense) {
     if (slot.track.keys.length > 1) continue;
     const label = slot.spec.label;
+
+    if (slot === blocker && rusher) {
+      // Named as the man on the rusher (`matchups`): a pass set, back and
+      // toward him, rather than the run-blocking fire-out below.
+      c.key(slot, 0.2, c.los - 0.5, slot.base.lateral, "block");
+      c.key(
+        slot,
+        Math.min(1.6, duration),
+        c.los - 2.2,
+        (slot.base.lateral + rusher.base.lateral) / 2,
+        "block",
+      );
+      continue;
+    }
 
     if (/^(LT|LG|C|RG|RT)$/.test(label)) {
       // Fire out, then stalemate — a yard and a half of push over two seconds.
@@ -793,6 +835,25 @@ function fillAmbientMotion(c: Choreography, duration: number): void {
     if (slot.track.keys.length > 1) continue;
     const label = slot.spec.label;
 
+    if (slot === rusher && blocker) {
+      // Named as the man coming (`matchups`), and he did not get home — so he
+      // meets his blocker in the pocket and stays engaged there.
+      c.key(slot, 0.2, c.los + 0.6, slot.base.lateral * 0.9, "run");
+      c.key(
+        slot,
+        Math.min(1.6, duration),
+        c.los - 1.6,
+        (slot.base.lateral + blocker.base.lateral) / 2,
+        "run",
+      );
+      continue;
+    }
+
+    if (slot === cover) {
+      const target = c.cast.get("receiver") ?? targetSlot(c);
+      if (target && shadow(c, slot, target)) continue;
+    }
+
     if (/^(DE|DT|NT)/.test(label)) {
       c.key(slot, 0.2, c.los + 0.6, slot.base.lateral * 0.9, "run");
       c.key(slot, Math.min(2.4, duration), c.los - 1.4, slot.base.lateral * 0.7, "run");
@@ -819,6 +880,38 @@ function fillAmbientMotion(c: Choreography, duration: number): void {
       "run",
     );
   }
+}
+
+/**
+ * The man in coverage runs the target's route with him (`matchups`).
+ *
+ * The first thing the renderer can draw that the engine actually decided
+ * rather than the choreographer invented: THIS corner was on THAT receiver.
+ * He trails by a yard and a half with inside leverage, reading every keyframe
+ * the target has — the route the ambient pass wrote, or the catch and the
+ * tackle the beats did. Returns false when the target has not moved, so the
+ * caller can fall through to ordinary pursuit.
+ */
+function shadow(c: Choreography, slot: Slot, target: Slot): boolean {
+  const keys = target.track.keys.filter((k) => k.t > 0);
+  if (keys.length === 0) return false;
+  const cushion = 1.5;
+  const inside = 0.8;
+  for (const [i, key] of keys.entries()) {
+    // Back out of world space the way `ballFinalSpot` does, so the shadow
+    // agrees with wherever the target's beats actually put him.
+    const absolute = key.pos.x + FIELD_LENGTH / 2;
+    const spot = c.direction === 1 ? absolute : FIELD_LENGTH - absolute;
+    const lateral = key.pos.z * c.direction;
+    c.key(
+      slot,
+      key.t,
+      spot + cushion,
+      lateral - Math.sign(lateral) * inside,
+      i === 0 ? "backpedal" : "run",
+    );
+  }
+  return true;
 }
 
 /** Where the ball ended up, for everyone else to run at. */

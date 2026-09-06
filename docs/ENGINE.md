@@ -104,10 +104,11 @@ draws — otherwise the PRNG sequence shifts and the log diverges from v1.
 | `downAndDistance` | The play-caller reads the distance: short is a run, long is a pass |
 | `quarterBreak` | A quarter ending is not a drive ending: the offense keeps its down |
 | `puntReturner` | A punt nobody returned names no returner, so nobody is charged or hurt for it |
+| `matchups` | A target is thrown at a covered man and a dropback is blocked by somebody: the outcome reads the two men |
 
 ### Presets
 
-Twenty-two gates is a question most callers should not have to answer. Three
+Twenty-three gates is a question most callers should not have to answer. Three
 ready-made sets are exported — `V1_FEATURES` (nothing on, the original engine),
 `RECOMMENDED_FEATURES` (everything that makes it more like football), and
 `ALL_FEATURES` (that plus `timeline`, for rendering). Spread one to disagree
@@ -912,6 +913,114 @@ that an absent returner means nobody fielded it, rather than a log that names
 one on every punt. Verified inert when off across five gate configurations
 including everything else on, and the v1 fixture regenerates byte-for-byte.
 
+## Who is on whom (`matchups` gate)
+
+The engine resolved a play with a handful of rolls against the team edge and
+picked participants by position weight afterwards. `selectDefender(def, state,
+"coverage")` chose the interceptor *after* the interception had been decided;
+the sacker was chosen after the sack. Nobody blocked anybody, no receiver was
+covered by a particular corner, and no rating on the field was read by
+anything except the kicker's leg — a 90 receiver against a 60 corner completed
+passes at exactly the rate the reverse did, and the offensive line was a
+position group that never touched a play. The ceiling was the same on both
+axes: the aggregate table could not find its last four points because there
+was no mechanism under the curves for them to come from, and the renderer
+could not show a corner beaten on a post because the engine did not know one
+was.
+
+Under the gate the three men who decide a dropback are selected **before** the
+outcome — the man in coverage on the target, the pass rusher, and the lineman
+blocking him — and the outcome reads the difference between them:
+
+| the matchup | reads | a full mismatch (30 rating points) |
+| --- | --- | --- |
+| receiver against the man covering him | completion | ±8 points |
+| | explosive rate | ×1.5 / ×0.5 |
+| | interception rate | ×0.6 / ×1.4 |
+| | yards after the catch | ±3 |
+| rusher against the man blocking him | sack rate | ×1.5 / ×0.5 |
+
+Every term is linear and centred on zero. The sacker is the man who was
+coming, the interceptor is the man who was covering, and all three are named
+on the play as `coverage`, `pass_rusher` and `blocker` whether or not anything
+came of it. Under `injuries` the rating read is the fatigued one, so a corner
+who has been on the field all night gets beaten — the link that makes riding a
+starter cost something on the field rather than only in the substitution
+logic. A roster that carries no linemen has not fielded a bad line, it has said
+nothing: the stand-in `selectPlayer` invents for an empty group is never named
+and never read, and the matchup is neutral.
+
+Measured over 300 games a league, both teams rated 70 so the team edge is zero,
+the home offense against the away defense:
+
+| | completion | explosive | picks | sacks | passing yards |
+| --- | --- | --- | --- | --- | --- |
+| everyone rated alike | 53.9% | 39.8% | 5.8% | 10.1% | 143 |
+| **receivers 90, corners 60** | **61.3%** | **56.3%** | **3.3%** | 9.4% | **181** |
+| **receivers 60, corners 90** | **46.6%** | **25.1%** | **7.9%** | 10.5% | **100** |
+| **line 60, front 90** | 52.3% | 34.8% | 6.3% | **14.8%** | 120 |
+| **line 90, front 60** | 55.9% | 43.2% | 5.5% | **5.7%** | 155 |
+
+A 90 receiver on a 60 corner is the explosive play; the reverse is the pick.
+The front rows move the passing numbers a little too, because a quarter of the
+men named in coverage are linebackers and the front is rated with them —
+which is the roster, not the gate. With the gate off the two coverage rosters
+produce the same game to the play, because nothing reads the men; the test
+pins that as a deep-equality of the rates.
+
+**What it must not do.** A league that turns this on to see its corners
+matter must not silently get a different scoring environment, so the
+property pinned is the one `schemes.test.ts` pins for the catalog, turned
+around: a mismatch produces more than a match does, in both directions, and
+a roster whose groups are rated alike plays the game it played before. Over
+500 balanced games the gate moves completion 52.7 → 53.7%, explosives
+39.0 → 38.5%, picks 5.9 → 5.7%, sacks 10.3 → 10.0%, passing yards 130 → 132
+and combined points 38.2 → 38.0. The one point of completion is fatigue and
+not a lever: with `injuries` off it is 52.9 → 53.1%. A secondary tackles as
+well as covers, so by the fourth quarter it is the more tired group, and the
+gate is the first thing to read that.
+
+**The reference roster was lying, and the gate found it.** The CLI's 25-man
+roster rated every player a little lower than the one listed before him, and
+the defense was typed in after the offense — so its secondary sat nine points
+below its receivers by an accident of listing order, invisible for as long as
+no rating was read against another. On that roster the gate threw for 145
+yards a game at 55% and put three points on the board, which is the game that
+talent implies and not the game a "72 everywhere" claims. The roster is now
+rated by position: the starter at the team rating, each man behind him three
+lower. With the gate off that reproduces the aggregate table to the decimal,
+because only the kicker's rating was ever read; with it on:
+
+| per team per game | before | `matchups` | varsity |
+| --- | --- | --- | --- |
+| completion rate | 52.9% | 52.6% | 50–55% |
+| passing yards | 128 | 129 | 110–150 |
+| sacks | 2.11 | 2.13 | ~2 |
+| interceptions | 1.09 | 1.08 | ~1 |
+| rushing share of TDs | 63% | 65% | 55–65% |
+| combined points | 37.72 | 37.84 | ~42 |
+
+Every aggregate stays in band. The rushing share reads at the top of its band,
+which is the draw stream shifting under a different sequence of selections
+rather than anything the gate reads — it sat at 62% on the old roster with the
+gate on — and combined scoring moves a tenth of a point, which is to say it
+does not move. That was the design: the four points were closed as a tuning
+question and this does not reopen it.
+
+**What it unlocks.** A recruiting class spent on a corner shows up in the box
+score, as fewer completions and more interceptions against *him*. Explosives
+concentrate on mismatches instead of spreading evenly. And the choreographer
+gets three facts it can draw rather than invent: `coverage` is cast onto the
+defensive back nearest the target and runs the target's route with him a
+yard and a half off with inside leverage; `pass_rusher` is cast onto the
+front and `blocker` onto the lineman across from him, and the two meet in the
+pocket — the first visual-fidelity gain that is not invention.
+
+**Cost.** Three selections on every dropback that did not happen before, and
+two that used to happen afterwards no longer do, so it is RNG-shifting and
+opt-in. Verified inert when off across five gate configurations including
+everything else on, and the v1 fixture regenerates byte-for-byte.
+
 ## Rendering seam (`timeline` gate)
 
 The engine stays headless. A renderer subscribes to what it produced.
@@ -1071,6 +1180,11 @@ pnpm demo:render   # simulate a game headlessly, then watch it
 16. Under `puntReturner`, `returnYards === 0` on a punt means nobody is named
     the returner, no snap is charged to him and no injury can reach him — the
     promise invariant 10 already makes for the kickoff
+17. Under `matchups`, a mismatch produces more than a match does in both
+    directions — a receiver with the corner beaten completes more, breaks more
+    and is picked less, a rusher with the lineman beaten gets home more — and
+    a roster whose groups are rated alike plays the game it played without
+    the gate, within noise. The gate redistributes; it never adds
 
 ## No free lunch in the scheme catalog
 
