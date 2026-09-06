@@ -653,22 +653,66 @@ function puntEvents(play: PbpPlay, snap: PbpSimEvent): PbpSimEvent[] {
   const landing = spotAt(play.fieldPosition + net);
   const kick = at(SNAP_TO_KICK);
   const returner = find(play, "returner");
+  const kicked: PbpSimEvent = {
+    t: kick,
+    type: "kick",
+    playerId: find(play, "kicker")?.playerId,
+    teamId: play.offenseTeamId,
+    spot: spotAt(play.fieldPosition - KICK_SPOT_DEPTH),
+  };
 
   /*
-   * The engine models a punt as NET yards — gross minus a return, resolved in
-   * one number. So the timeline shows the ball arriving where the next drive
-   * starts rather than staging a hang-and-return the engine never simulated.
-   * The returner is still named, because he is named on the play.
+   * When the play recorded a return, lay it out: the ball is caught where the
+   * gross put it and comes back to where the net says the next drive starts.
+   * Everything is derivable from the two recorded numbers — the gross is
+   * `net + returnYards` — which is what keeps this pure and usable on a log
+   * stored years ago. The kickoff got this layout first; without it a punt
+   * returned to the house was drawn as a ball landing in the end zone.
+   */
+  const returned = play.returnYards ?? 0;
+  if (returned > 0) {
+    const gross = net + returned;
+    const caught = spotAt(play.fieldPosition + gross);
+    const fielded = at(kick + PUNT_HANG_BASE + gross / PASS_SPEED);
+    const end = at(fielded + carryTime(returned));
+    return [
+      snap,
+      kicked,
+      {
+        t: fielded,
+        type: "return_start",
+        playerId: returner?.playerId,
+        teamId: play.defenseTeamId,
+        spot: caught,
+      },
+      play.isReturnTd
+        ? {
+            t: end,
+            type: "touchdown",
+            playerId: returner?.playerId,
+            teamId: play.defenseTeamId,
+            // The receiving team scores at the punting team's goal line.
+            spot: 0,
+          }
+        : {
+            t: end,
+            // The engine names no tackler on a punt, so nobody is credited.
+            type: "tackle",
+            teamId: play.offenseTeamId,
+            spot: landing,
+          },
+    ];
+  }
+
+  /*
+   * No return to draw: a v1 punt resolved as one net number, or a fair catch,
+   * a touchback or a ball downed in coverage. The ball is dead where the next
+   * drive starts. A returner is named only when the log names one — under
+   * `puntReturner` an unreturned punt names nobody, and the beat says so.
    */
   return [
     snap,
-    {
-      t: kick,
-      type: "kick",
-      playerId: find(play, "kicker")?.playerId,
-      teamId: play.offenseTeamId,
-      spot: spotAt(play.fieldPosition - KICK_SPOT_DEPTH),
-    },
+    kicked,
     {
       t: at(kick + PUNT_HANG_BASE + Math.abs(net) / PASS_SPEED),
       type: "kick_result",

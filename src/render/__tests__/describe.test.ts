@@ -79,3 +79,27 @@ describe("a kickoff", () => {
     expect(describePlay(v1[0])).toMatch(/^Kickoff, returned to the \d+\.$/);
   });
 });
+
+describe("a punt", () => {
+  const punts = Array.from({ length: 200 }, (_, i) =>
+    simulateGameLog({
+      home: team("home", 72),
+      away: team("away", 68),
+      seed: seedFor("pbp", "describe", "punt", String(i)),
+      features: { scoringV2: true, situational: true, balance: true, puntReturns: true },
+    }),
+  )
+    .flatMap((l) => l.drives.flatMap((d) => d.plays))
+    .filter((p) => p.playType === "punt");
+
+  it("says how far it went and how far it came back", () => {
+    const returned = punts.find((p) => (p.returnYards ?? 0) > 0 && !p.isReturnTd);
+    const unreturned = punts.find((p) => p.returnYards === 0);
+    const houseCall = punts.find((p) => p.isReturnTd);
+    expect(returned && describePlay(returned)).toMatch(/^Punt, \d+ yards?, returned \d+ yards?\.$/);
+    // The gross is the net plus the return — the same arithmetic the timeline draws.
+    expect(describePlay(returned!)).toContain(`Punt, ${returned!.yardsGained + returned!.returnYards!} yards`);
+    expect(unreturned && describePlay(unreturned)).toMatch(/^Punt, \d+ yards? net\.$/);
+    expect(houseCall && describePlay(houseCall)).toMatch(/TOUCHDOWN/);
+  });
+});

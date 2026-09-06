@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 import {
   simulateGameLog,
+  playTimeline,
   seedFor,
   type PbpGameLog,
   type PbpPlay,
@@ -267,5 +268,98 @@ describe("the try after a defensive touchdown", () => {
     const made = kicks.filter((t) => t === "extra_point").length;
     expect(made / kicks.length).toBeGreaterThan(0.85);
     expect(made / kicks.length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("what a renderer sees", () => {
+  /*
+   * The kickoff got the `returnYards`-aware layout — catch spot, return,
+   * tackle or touchdown — and the punt did not, so a punt returned to the
+   * house was drawn as a ball landing in the end zone. The layout reads the
+   * play and draws nothing the engine did not decide.
+   */
+  // Two hundred games, because a house call is one punt in about 200 and the
+  // touchdown layout is the one this exists to pin.
+  const drawn = Array.from({ length: 200 }, (_, i) =>
+    simulateGameLog({
+      home: team("home", 74),
+      away: team("away", 66),
+      seed: seedFor("pbp", "punts", "timeline", String(i)),
+      features: { ...GATES, puntReturns: true, defensivePat: true, timeline: true },
+    }),
+  );
+  const laid = punts(drawn);
+
+  it("lays out a return from where it was caught to where it ended", () => {
+    const returned = laid.filter((p) => (p.returnYards ?? 0) > 0 && !p.isReturnTd);
+    expect(returned.length).toBeGreaterThan(50);
+    for (const play of returned) {
+      const events = play.events ?? [];
+      const start = events.find((e) => e.type === "return_start");
+      const end = [...events].reverse().find((e) => e.spot !== undefined);
+      expect(start).toBeDefined();
+      // Caught where the gross put it: the net plus what came back.
+      expect(start!.spot).toBe(play.fieldPosition + play.yardsGained + play.returnYards!);
+      expect(start!.playerId).toBe(play.participants.find((x) => x.role === "returner")?.playerId);
+      // Spots are in the PUNTING team's frame, so the returner runs downward.
+      expect(start!.spot).toBeGreaterThan(end!.spot!);
+      expect(end!.type).toBe("tackle");
+      // Where the engine actually spotted it, not where the layout guessed.
+      expect(end!.spot).toBe(play.fieldPosition + play.yardsGained);
+    }
+  });
+
+  it("takes one to the house at the punting team's goal line", () => {
+    const houseCalls = laid.filter((p) => p.isReturnTd);
+    expect(houseCalls.length).toBeGreaterThan(0);
+    for (const play of houseCalls) {
+      const events = play.events ?? [];
+      const td = events.find((e) => e.type === "touchdown");
+      expect(td).toBeDefined();
+      expect(td!.spot).toBe(0);
+      expect(td!.teamId).toBe(play.defenseTeamId);
+      expect(events.some((e) => e.type === "return_start")).toBe(true);
+      expect(events.some((e) => e.type === "kick_result")).toBe(false);
+    }
+  });
+
+  it("does not stage a return nobody made", () => {
+    const unreturned = laid.filter((p) => p.returnYards === 0);
+    expect(unreturned.length).toBeGreaterThan(50);
+    for (const play of unreturned) {
+      const events = play.events ?? [];
+      expect(events.some((e) => e.type === "return_start")).toBe(false);
+      const end = [...events].reverse().find((e) => e.spot !== undefined);
+      expect(end!.type).toBe("kick_result");
+      expect(end!.spot).toBe(play.fieldPosition + play.yardsGained);
+    }
+  });
+
+  it("draws the return a returnStats punt recorded, and none for a punt that recorded nothing", () => {
+    /*
+     * `returnStats` alone writes `returnYards` as the return the recorded net
+     * implies, so those get the layout too — the number is real. A log with
+     * no return recorded at all is drawn as the one net number it is.
+     */
+    for (const play of V1) {
+      const events = playTimeline(play);
+      expect(events.some((e) => e.type === "return_start")).toBe((play.returnYards ?? 0) > 0);
+    }
+    const bare = punts([
+      simulateGameLog({
+        home: team("home", 72),
+        away: team("away", 68),
+        seed: seedFor("pbp", "punts", "bare"),
+      }),
+    ]);
+    expect(bare.length).toBeGreaterThan(0);
+    for (const play of bare) {
+      expect(play.returnYards).toBeUndefined();
+      const events = playTimeline(play);
+      expect(events.some((e) => e.type === "return_start")).toBe(false);
+      const result = events.find((e) => e.type === "kick_result");
+      expect(result?.spot).toBe(play.fieldPosition + play.yardsGained);
+      expect(result?.playerId).toBeDefined();
+    }
   });
 });

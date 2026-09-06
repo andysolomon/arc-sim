@@ -80,8 +80,14 @@ export function describePlay(play: PbpPlay): string {
       return play.isReturnTd
         ? "INTERCEPTED — returned for a touchdown!"
         : `INTERCEPTED, returned ${yards(play.returnYards ?? gained)}.`;
-    case "punt":
+    case "punt": {
+      // A return the log recorded is a return worth saying; the gross is the
+      // net plus what came back, the same arithmetic the timeline draws.
+      const returned = play.returnYards ?? 0;
+      if (play.isReturnTd) return `Punt, ${yards(gained + returned)} — returned for a TOUCHDOWN!`;
+      if (returned > 0) return `Punt, ${yards(gained + returned)}, returned ${yards(returned)}.`;
       return `Punt, ${yards(gained)} net.`;
+    }
     case "field_goal":
       return `${100 - play.fieldPosition + 17}-yard field goal is GOOD.`;
     case "field_goal_miss":

@@ -1114,6 +1114,21 @@ Three properties make this safe to switch on:
 
 Cost: roughly +70% on a serialized log, which is why it is opt-in.
 
+**The punt on screen.** `puntEvents` laid every punt out as one net number,
+even after `puntReturns` began recording `returnYards` — the kickoff got the
+return-aware layout and the punt did not, so a punt returned to the house was
+drawn as a ball landing in the end zone. It now reads the same two numbers the
+kickoff does: the gross is `net + returnYards`, the ball is caught there, and
+the return runs back to where the net says the next drive starts, ending in a
+tackle nobody is credited with (the engine names no tackler on a punt) or a
+touchdown at the punting team's goal line. A punt that recorded no return —
+a v1 punt, a fair catch, a touchback, a ball downed in coverage — is still the
+ball dead where the next drive starts, and under `puntReturner` the beat names
+nobody, because nobody fielded it; the choreographer then moves nobody, and a
+returner who did signal a fair catch comes to the ball and stays on his feet
+rather than being drawn tackled. The caption says the same thing: "Punt, 41
+yards, returned 9." Reads the log, draws nothing, needs no gate.
+
 ## Graphics layer (`@arc-sim/core/render`)
 
 A separate entry point, so importing the engine never pulls in Three.js.

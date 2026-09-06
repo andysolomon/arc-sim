@@ -616,14 +616,19 @@ function walkEvents(c: Choreography, events: readonly PbpSimEvent[]): number {
           );
         }
         flightFrom = null;
-        // A punt's net spot is where the ball is dead, so somebody is standing
-        // there — the engine named the returner even though it resolved the
-        // return as one number.
-        const returner = actorFor(c, "returner", c.find(c.defense, "RET"));
+        /*
+         * A punt with no return to draw. When the beat names a returner he
+         * fielded it where the ball is dead — a fair catch, or a v1 punt
+         * resolved as one net number — so he comes to it and stays on his
+         * feet: nobody tackled a man who signalled. When it names nobody
+         * (`puntReturner`), nobody fielded it and nobody is moved.
+         */
+        const returner = ev.playerId
+          ? actorFor(c, "returner", c.find(c.defense, "RET"))
+          : undefined;
         if (returner && isPunt(c)) {
           c.key(returner, ev.t - 0.8, spot + 6, 0, "run");
           c.key(returner, ev.t, spot, 0, "catch");
-          c.key(returner, ev.t + 0.4, spot, 0, "tackled");
         }
         break;
       }
