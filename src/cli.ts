@@ -273,6 +273,12 @@ function printAggregate(args: Args): void {
     for (const play of log.drives.flatMap((d) => d.plays)) {
       if (play.penalty?.negatesPlay) continue;
       switch (play.playType) {
+        // A carry here is a `rush` PLAY. The box score books more: a kneel is
+        // a carry, and under `sackStats` so is a sack, as the NFHS has it — so
+        // a team's rushing lines read about 3.6 carries and 14 yards away from
+        // this table (38 at 4.1 against 34 at 4.9). The bands below are
+        // play-calling bands, and every number in docs/ENGINE.md was measured
+        // this way; see "Two small debts, paid" there for the reconciliation.
         case "rush": carries++; rushYds += play.yardsGained; plays++; if (play.isScoring) rushTd++; break;
         case "pass_complete": att++; comp++; passYds += play.yardsGained; plays++; if (play.isScoring) passTd++; break;
         case "pass_incomplete": att++; plays++; break;

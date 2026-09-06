@@ -8,8 +8,8 @@ what has not, and it has shrunk.
 
 ## Where it stands
 
-Twenty-five gates, 419 tests, every varsity aggregate in band, every point on
-the scoreboard attributable to a player, and the v1 fixture reproducing
+Twenty-five gates, 419 tests, thirteen of fourteen varsity aggregates in band,
+every point on the scoreboard attributable to a player, and the v1 fixture reproducing
 byte-for-byte. Combined scoring sits at 37.9 against ~42, and `ENGINE.md`
 closes that thread deliberately: every distribution that feeds it is already in
 band, so moving it means un-pinning something that is currently right.

@@ -1048,6 +1048,19 @@ reads nothing from it — the log is byte-identical apart from recording the
 gate, which the test pins — and `pnpm sim` is unmoved because it counts play
 types rather than stat lines.
 
+That leaves the reference table and the box score disagreeing on purpose,
+and the size of it is worth writing down. `pnpm sim` counts a carry as a
+`rush` play, so its 34 carries and 4.9 yards a carry are what the offense
+*called*. A team's rushing lines hold more than that: under `sackStats` the
+quarterback's sacks, 2.1 a game at six yards each, and always his kneels,
+about 1.5 a game at a yard each. Measured over 600 games on the CLI roster,
+the box score reads **38.0 carries at 4.1** against the table's **34.4 at
+4.9** — 3.6 carries higher, 14 yards lower, and the sacks are most of both.
+The table keeps counting plays because every measurement in this document was
+taken that way and the bands are play-calling bands: 35–40 is how often a
+varsity offense hands the ball off, not how the NFHS statistician books the
+afternoon. A reader comparing the two should expect the gap.
+
 **A pick return has a shape (`interceptionReturns`).** `doPass` drew the
 return on an interception as `rand() * 20`: every length from nothing to
 twenty equally likely, mean ten, which gets the average about right and the
